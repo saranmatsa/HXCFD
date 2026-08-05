@@ -78,22 +78,25 @@ fn ensure_backend_runtime_resource_root(manifest_dir: &Path) {
 }
 
 fn find_npm() -> PathBuf {
-    // Try portable Node.js location first
-    if let Ok(temp) = env::var("TEMP") {
-        let portable_dir = PathBuf::from(temp)
-            .join("node-portable")
-            .join("node-v22.14.0-win-x64");
-        let portable_npm_cmd = portable_dir.join("npm.cmd");
-        if portable_npm_cmd.exists() {
-            return portable_npm_cmd;
+    // Use system npm directly to avoid portable npm issues
+    if let Ok(npm_path) = std::env::var("NPM_CMD") {
+        let candidate = PathBuf::from(npm_path);
+        if candidate.exists() {
+            return candidate;
         }
-        let portable_npm_exe = portable_dir.join("npm.exe");
-        if portable_npm_exe.exists() {
-            return portable_npm_exe;
+    }
+    // Try common Windows locations
+    for candidate in [
+        PathBuf::from(r"C:\Program Files\nodejs\npm.cmd"),
+        PathBuf::from(r"C:\Program Files (x86)\nodejs\npm.cmd"),
+        PathBuf::from(r"C:\nvm4w\nodejs\npm.cmd"),
+    ] {
+        if candidate.exists() {
+            return candidate;
         }
     }
     // Fall back to PATH
-    PathBuf::from("npm")
+    PathBuf::from("npm.cmd")
 }
 
 fn find_python() -> PathBuf {

@@ -1,6 +1,94 @@
 # HX CFD — Continuation Status
 
-Last updated: 2026-07-21
+Last updated: 2026-08-02
+
+## Backend foundation pass (2026-08-02)
+
+The local-first desktop workflow core was already production-grade; the surface
+around it was not. This pass brought the surrounding backend to the same
+standard. The live desktop workflow path (Gmsh / meshio / VTK / Nevergrad /
+PhysicsNeMo) is unchanged and remained green throughout.
+
+### What was done
+
+- Removed `backend/src/cfd_backend/database.py` (dead: imported a nonexistent
+  `cfd_backend.config`, referenced missing `settings.testing` /
+  `database_pool_*` fields, and declared a second `Base` distinct from
+  `models/base.py`). `models/base.py: Base` is now the unambiguous single
+  source of truth for `Base.metadata`.
+- Quarantined the broken legacy public REST surface
+  (`api/v1/{auth,users,meshes,optimization,post,projects,simulations,solvers,
+  dependencies}.py`) into `api/v1/_legacy/`. These routers declared inline
+  Pydantic schemas referencing ORM attributes that did not exist on the
+  canonical models (`Project.solver`, `Project.reference_velocity`,
+  `Mesh.file_size`, `Simulation.cpu_hours`, ...). They were never mounted in
+  the live desktop path; re-mounting requires first re-aligning to the new
+  `cfd_backend.schemas.*` and the typed entity services.
+- Trimmed `main.py` to the live surface only: removed the dead CLI
+  `--workflow-*` / `--project-*` contract dispatcher (Rust invokes
+  `/api/v1/workflow/*` over HTTP now, not via CLI flags) and removed the
+  `else` branch that called `build_api_router()`. The workflow router is
+  always mounted and self-guards with `CFD_PLATFORM_TAURI_TOKEN`; outside the
+  desktop process the guard is a no-op so dev/test can exercise it.
+- Fixed `core/exceptions.py`: renamed the shadowing `ValidationError` class
+  to `CFDValidationError` (it was shadowing `pydantic.ValidationError` and
+  its handler called `.errors()` on a custom class that did not implement
+  it — the handler would have crashed). Added a proper
+  `pydantic.ValidationError` handler that reads `.errors()` correctly. A
+  `ValidationError = CFDValidationError` alias is kept for legacy imports.
+- Added `cfd_backend/schemas/` — a typed Pydantic schema layer aligned with
+  the canonical ORM models (`from_attributes=True` so ORM rows serialize
+  directly): `common.py`, `project.py`, `mesh.py`, `simulation.py`,
+  `optimization.py`, `user.py`. The schema layer is the future-contract for
+  any rebuilt public REST API and the structural guard against the legacy
+  bug recurring.
+- Added `cfd_backend/services/entity/` — a thin service layer above the ORM
+  and below any future router: `base.py` (BaseService[ModelT]), `project_service.py`
+  (Project CRUD + owner/admin visibility policy), `mesh_service.py`,
+  `simulation_service.py`. The live `LocalWorkflowService` still owns real
+  engineering execution; these services own only persistence + authorization.
+- Added `alembic.ini` + `src/cfd_backend/migrations/{env.py,script.py.mako,
+  __init__.py,versions/.gitkeep}`. The async `DATABASE_URL` is bridged to a
+  sync form in `env.py`; `Base.metadata` is the autogenerate target. No
+  initial migration yet (by decision: wait for the ORM schema to stabilise).
+- Added `tests/conftest.py` with pytest fixtures (`settings`, `temp_db_engine`,
+  `db_session`, `app`, `client`, `admin_user`, `desktop_token`). Coexists
+  with the existing unittest discovery; activates only when pytest is the
+  runner.
+- Added `tests/test_backend_infra.py` (unittest) — foundation canary: health,
+  readiness, desktop token guard rejects unauthenticated + accepts correct,
+  validation handler dispatches, live project round-trip via the workflow
+  router, isolated-DB service-layer round-trip.
+- Added `backend/.env.example` documenting every settings key and
+  `backend/README.md` describing the cleaned architecture, the legacy
+  quarantine rationale, and the error envelope contract.
+
+### Verification
+
+- `backend/.venv/Scripts/python.exe -m unittest discover -s backend/tests
+  -p 'test_*.py' -q` → **32 tests, OK** (25 prior + 7 new infra)
+- All public symbols import; `app.routes` has 7 entries (workflow endpoints + 2 health)
+- `alembic current` reaches env.py, reports `Context impl SQLiteImpl`, and
+  has no revisions to apply (as designed)
+
+### Architectural decisions
+
+- **Production-not-rebuild.** The legacy public REST surface was removed
+  rather than patched-in-place. Patching would have left it reading fake
+  columns; the schema-mismatch bug was structural, not a typo.
+- **Schemas before routers.** Future routers must consume the typed schemas
+  in `cfd_backend.schemas.*`; this prevents the column drift that broke the
+  legacy surface from recurring.
+- **Services own policy, routers stay thin.** Authorization lives in
+  `services/entity/project_service.py` (owner/admin/public soft-policy),
+  not duplicated per-router.
+- **Tauri owns identity;** the desktop process sets `CFD_PLATFORM_TAURI_TOKEN`
+  at launch; the workflow router's `_require_desktop_token` is the second
+  factor. Outside the desktop the guard is a no-op for dev/test, by design.
+- **Migrations deferred.** The ORM schema has not stabilised, so Alembic is
+  wired but has no initial migration. The first autogenerate revision
+  becomes the baseline once the model column set is final; `create_all`
+  covers fresh databases until then.
 
 ## Current result
 

@@ -1,0 +1,3 @@
+# Migration revision files live here. Currently empty by design (no initial
+# migration yet — see ../__init__.py for rationale). Add revisions through
+# `alembic revision --autogenerate -m "<message>"` rather than by hand.

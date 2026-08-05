@@ -85,6 +85,15 @@ ENGINE_DEFINITIONS: tuple[EngineDefinition, ...] = (
         executable_names=("cartesianMesh.exe", "cartesianMesh"),
     ),
     EngineDefinition(
+        id="cadquery",
+        display_name="CadQuery",
+        workflow=("geometry", "meshing"),
+        runtime="isolated_native_worker",
+        optional=True,
+        adapter="cadquery_script",
+        distribution="cadquery",
+    ),
+    EngineDefinition(
         id="meshio",
         display_name="meshio",
         workflow=("meshing", "results", "reports"),
@@ -250,6 +259,9 @@ class EngineRegistry:
         if definition.id in {"physicsnemo", "physicsnemo_cfd"}:
             return await self._probe_physicsnemo(definition)
 
+        if definition.id == "cadquery":
+            return await self._probe_cadquery(definition)
+
         if definition.runtime == "tauri_webview":
             return EngineCapability(
                 id=definition.id,
@@ -364,6 +376,35 @@ class EngineRegistry:
                 "and isolated Python runtime before surrogate training can run."
             ),
         )
+
+    async def _probe_cadquery(self, definition: EngineDefinition) -> EngineCapability:
+        try:
+            import cadquery
+            import cadquery.cqgi as cqgi
+            version = getattr(cadquery, "__version__", "unknown")
+            return EngineCapability(
+                id=definition.id,
+                display_name=definition.display_name,
+                workflow=list(definition.workflow),
+                runtime=definition.runtime,
+                optional=definition.optional,
+                adapter=definition.adapter,
+                status="ready",
+                version=version,
+                detail="CadQuery available in managed Python runtime.",
+            )
+        except ImportError as e:
+            return EngineCapability(
+                id=definition.id,
+                display_name=definition.display_name,
+                workflow=list(definition.workflow),
+                runtime=definition.runtime,
+                optional=definition.optional,
+                adapter=definition.adapter,
+                status="unavailable",
+                version=None,
+                detail=f"CadQuery not installed: {e}",
+            )
 
     def worker_environment(self, engine_id: str) -> dict[str, str]:
         """Return only the engine-specific environment needed by a worker."""

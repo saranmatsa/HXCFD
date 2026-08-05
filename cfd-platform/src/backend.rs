@@ -7,6 +7,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::{Command as StdCommand, Stdio};
 use std::sync::Arc;
+use std::sync::OnceLock;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader};
@@ -321,17 +322,56 @@ impl BackendManager {
                     path_prefixes: runtime.path_prefixes,
                 });
             }
-
             let python_path =
-                python_path.context("Python runtime is required for the development backend.")?;
-            return Ok(BackendLaunchSpec {
-                program: python_path.to_path_buf(),
-                args: vec![backend_path.as_os_str().to_os_string()],
-                working_directory: source_root.clone(),
-                python_paths: vec![source_root],
-                python_home: None,
-                path_prefixes: Vec::new(),
-            });
+                            python_path.context("Python runtime is required for the development backend.")?;
+
+                        // Include the managed venv's site-packages so imports work in debug mode
+                        let venv_site_packages = if cfg!(target_os = "windows") {
+                            // Try release staged runtime first
+                            let release_venv = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                                .join("bin")
+                                .join("backend-runtime")
+                                .join("venv")
+                                .join("Lib")
+                                .join("site-packages");
+                            if release_venv.exists() {
+                                release_venv
+                            } else {
+                                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                                    .join("backend")
+                                    .join(".venv")
+                                    .join("Lib")
+                                    .join("site-packages")
+                            }
+                        } else {
+                            // Linux/macOS similar logic
+                            let release_venv = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                                .join("bin")
+                                .join("backend-runtime")
+                                .join("venv")
+                                .join("lib")
+                                .join("python3.11")
+                                .join("site-packages");
+                            if release_venv.exists() {
+                                release_venv
+                            } else {
+                                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                                    .join("backend")
+                                    .join(".venv")
+                                    .join("lib")
+                                    .join("python3.11")
+                                    .join("site-packages")
+                            }
+                        };
+
+                        return Ok(BackendLaunchSpec {
+                            program: python_path.to_path_buf(),
+                            args: vec![backend_path.as_os_str().to_os_string()],
+                            working_directory: source_root.clone(),
+                            python_paths: vec![source_root, venv_site_packages],
+                            python_home: None,
+                            path_prefixes: Vec::new(),
+                        });
         }
 
         anyhow::bail!("Unknown backend type: {}", backend_path.display())
@@ -466,7 +506,9 @@ impl BackendManager {
             command.env("PATH", runtime_path);
         }
 
-        let mut child = command.spawn().context("Failed to spawn backend process")?;
+        let mut child = command.spawn()
+            .with_context(|| format!("Failed to spawn backend: program={:?}, args={:?}, cwd={:?}", 
+                launch.program, launch.args, launch.working_directory))?;
 
         // Take stdout and stderr
         let stdout = child.stdout.take().context("Failed to capture stdout")?;
@@ -484,13 +526,14 @@ impl BackendManager {
         let stderr_reader = self.spawn_log_reader(stderr, "stderr", app_handle.clone());
 
         // A successful OS spawn is not enough: FastAPI can still fail during
-        // its lifespan (for example because the local database cannot open).
-        // Keep the desktop in Starting until the private endpoint responds.
-        if let Err(error) = self.wait_for_startup_health().await {
-            let _ = self.stop().await;
-            let _ = tokio::join!(stdout_reader, stderr_reader);
-            return Err(error);
-        }
+                // its lifespan (for example because the local database cannot open).
+                // Keep the desktop in Starting until the private endpoint responds.
+                if let Err(error) = self.wait_for_startup_health().await {
+                    eprintln!("DEBUG wait_for_startup_health failed: {error:#}");
+                    let _ = self.stop().await;
+                    let _ = tokio::join!(stdout_reader, stderr_reader);
+                    return Err(error);
+                }
 
         // Update status only after FastAPI has completed startup.
         *self.status.write().await = BackendStatus::Running;
@@ -510,6 +553,8 @@ impl BackendManager {
     /// Wait for FastAPI startup while also detecting an early child-process exit.
     async fn wait_for_startup_health(&self) -> Result<()> {
         let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+        let mut interval = Duration::from_millis(125);
+        let max_interval = Duration::from_secs(2);
 
         loop {
             if self.probe_health(Duration::from_millis(500)).await {
@@ -530,10 +575,7 @@ impl BackendManager {
                             Some(Err(error))
                         }
                     },
-                    None => Some(Err(std::io::Error::new(
-                        std::io::ErrorKind::NotFound,
-                        "Backend process was not available during startup",
-                    ))),
+                    None => None,
                 }
             };
 
@@ -552,7 +594,8 @@ impl BackendManager {
                 anyhow::bail!("Backend did not become healthy within 15 seconds")
             }
 
-            tokio::time::sleep(Duration::from_millis(125)).await;
+            tokio::time::sleep(interval).await;
+            interval = std::cmp::min(interval * 2, max_interval);
         }
     }
 
@@ -997,7 +1040,15 @@ impl BackendManager {
             Some(endpoint) => endpoint,
             None => return false,
         };
-        let client = reqwest::Client::new();
+        
+        static HEALTH_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+        let client = HEALTH_CLIENT.get_or_init(|| {
+            reqwest::Client::builder()
+                .connect_timeout(Duration::from_secs(2))
+                .build()
+                .expect("Failed to create health check client")
+        });
+        
         let response = client
             .get(format!("{}/health", endpoint))
             .timeout(request_timeout)

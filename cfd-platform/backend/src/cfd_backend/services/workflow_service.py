@@ -274,7 +274,7 @@ class LocalWorkflowService:
             "id": str(uuid.uuid4()),
             "stage": stage_id,
             "state": "QUEUED",
-            "recipe": self._normalize_configuration(stage_id, recipe or configuration),
+            "recipe": self._normalize_configuration(stage_id, configuration if not recipe else recipe),
             "created_at": self._now(),
             "updated_at": self._now(),
             "error": None,

@@ -8,7 +8,7 @@ with proper HTTP status codes and error codes for API responses.
 from typing import Any, Dict, Optional
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
-from pydantic import ValidationError
+from pydantic import ValidationError as PydanticValidationError
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -150,9 +150,14 @@ class ProjectError(CFDException):
         )
 
 
-class ValidationError(CFDException):
-    """Input validation errors."""
-    
+class CFDValidationError(CFDException):
+    """Domain-level input validation errors.
+
+    Renamed from ``ValidationError`` to avoid shadowing
+    ``pydantic.ValidationError`` (which exposes ``.errors()``) and to make the
+    exception handler dispatch unambiguous.
+    """
+
     def __init__(
         self,
         message: str,
@@ -275,11 +280,35 @@ def setup_exception_handlers(app: FastAPI) -> None:
             },
         )
     
-    @app.exception_handler(ValidationError)
-    async def validation_exception_handler(request: Request, exc: ValidationError) -> JSONResponse:
+    @app.exception_handler(CFDValidationError)
+    async def cfd_validation_exception_handler(
+        request: Request, exc: CFDValidationError
+    ) -> JSONResponse:
         logger.warning(
-            "Validation Error",
-            errors=exc.errors(),
+            "validation_error",
+            message=exc.message,
+            details=exc.details,
+            path=request.url.path,
+        )
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "error": {
+                    "code": exc.error_code,
+                    "message": exc.message,
+                    "details": exc.details,
+                }
+            },
+        )
+
+    @app.exception_handler(PydanticValidationError)
+    async def pydantic_validation_exception_handler(
+        request: Request, exc: PydanticValidationError
+    ) -> JSONResponse:
+        errors = exc.errors() if hasattr(exc, "errors") else []
+        logger.warning(
+            "pydantic_validation_error",
+            errors=errors,
             path=request.url.path,
         )
         return JSONResponse(
@@ -288,7 +317,7 @@ def setup_exception_handlers(app: FastAPI) -> None:
                 "error": {
                     "code": "VALIDATION_ERROR",
                     "message": "Request validation failed",
-                    "details": {"errors": exc.errors()},
+                    "details": {"errors": errors},
                 }
             },
         )
@@ -311,3 +340,9 @@ def setup_exception_handlers(app: FastAPI) -> None:
                 }
             },
         )
+
+
+# Backward-compat alias. Legacy code imported the old shadowing name
+# ``ValidationError``; the canonical name is now ``CFDValidationError`` to avoid
+# collision with ``pydantic.ValidationError``.
+ValidationError = CFDValidationError

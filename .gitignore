@@ -22,6 +22,8 @@ react-three-fiber/
 three.js/
 vtk-js/
 tauri/
+cadquery/
+code/
 
 # -----------------------------------------------------------------------------
 # Python
@@ -115,6 +117,8 @@ bun.lockb
 .DS_Store
 Thumbs.db
 Thumbs.db:encryptable
+.agents/
+.sonar/
 
 # -----------------------------------------------------------------------------
 # Logs and Cache
@@ -137,6 +141,15 @@ cfd-platform/backend/**/__pycache__/
 *.swp
 *.swo
 *.lnk
+.cache/
+tmp/
+data/
+projects/
+logs/
+WhatsApp Image 2026-07-13 at 04.40.15.jpeg
+b_release -a
+package-lock.json
+sonar-project.properties
 
 # -----------------------------------------------------------------------------
 # Installer / Build artifacts

@@ -16,7 +16,7 @@
   html,
   body,
   #root {
-    min-width: 1024px;
+    min-width: 320px;
     min-height: 100vh;
     margin: 0;
   }
@@ -47,5 +47,396 @@
   ::selection {
     background: #2f72e8;
     color: #fff;
+  }
+}
+
+@layer components {
+  .wind-shell {
+    background:
+      radial-gradient(circle at 50% 44%, rgba(255, 255, 255, 0.09), transparent 18rem),
+      linear-gradient(180deg, #000 0%, #020202 44%, #000 100%);
+  }
+
+  .wind-shell::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 23%),
+      radial-gradient(ellipse at 51% 80%, rgba(255, 255, 255, 0.08), transparent 36rem);
+    pointer-events: none;
+  }
+
+  .wind-hx-logo {
+    color: transparent;
+    background:
+      linear-gradient(180deg, #fff 0%, #d6d6d6 22%, #7b7b7d 50%, #f6f6f6 72%, #3d3d3f 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    filter: drop-shadow(0 0 18px rgba(255, 255, 255, 0.16));
+    text-shadow: 0 0 1px rgba(255, 255, 255, 0.6);
+  }
+
+  .wind-streams {
+    position: absolute;
+    inset: 23% -4% 19%;
+  }
+
+  .wind-streams span {
+    position: absolute;
+    left: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.9) 26%, rgba(255, 255, 255, 0.45) 66%, transparent);
+    border-radius: 999px;
+    box-shadow: 0 0 7px rgba(255, 255, 255, 0.35);
+    animation: wind-line-drift 7s ease-in-out infinite alternate;
+  }
+
+  .wind-streams span:nth-child(3n) {
+    height: 2px;
+    filter: blur(0.2px);
+  }
+
+  .wind-streams span:nth-child(2n) {
+    animation-duration: 9s;
+  }
+
+  .wind-car {
+    position: absolute;
+    left: 13%;
+    right: 17%;
+    top: 44%;
+    height: 170px;
+    transform: translateY(-50%);
+    filter: drop-shadow(0 0 18px rgba(255, 255, 255, 0.22));
+  }
+
+  .wind-car .car-body {
+    position: absolute;
+    left: 5%;
+    right: 10%;
+    top: 49px;
+    height: 78px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(155, 155, 158, 0.6) 35%, rgba(30, 30, 32, 0.7) 72%, rgba(255, 255, 255, 0.4)),
+      linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.75), transparent);
+    clip-path: polygon(0 76%, 11% 42%, 32% 19%, 58% 11%, 82% 20%, 100% 57%, 95% 79%, 63% 88%, 22% 90%);
+    border-radius: 50% 48% 38% 45%;
+    opacity: 0.94;
+  }
+
+  .wind-car .car-canopy {
+    position: absolute;
+    left: 37%;
+    top: 23px;
+    width: 26%;
+    height: 58px;
+    border: 2px solid rgba(255, 255, 255, 0.55);
+    border-bottom-color: transparent;
+    border-radius: 80% 80% 20% 20%;
+    transform: skewX(-18deg);
+    box-shadow: inset 0 10px 16px rgba(255, 255, 255, 0.08);
+  }
+
+  .wind-car .car-highlight {
+    position: absolute;
+    left: 18%;
+    right: 15%;
+    top: 87px;
+    height: 8px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95), transparent);
+    border-radius: 999px;
+    filter: blur(0.8px);
+  }
+
+  .wind-car .car-tail {
+    position: absolute;
+    right: 4%;
+    top: 57px;
+    width: 13%;
+    height: 70px;
+    background: linear-gradient(130deg, rgba(255, 255, 255, 0.8), rgba(55, 55, 58, 0.55));
+    clip-path: polygon(0 24%, 100% 0, 74% 62%, 16% 100%);
+  }
+
+  .wind-car .car-wake {
+    position: absolute;
+    right: -10%;
+    top: 66px;
+    width: 27%;
+    height: 82px;
+    border-top: 2px solid rgba(255, 255, 255, 0.44);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 50%;
+    filter: blur(1px);
+  }
+
+  .wind-reflection {
+    position: absolute;
+    left: 14%;
+    right: 17%;
+    top: 60%;
+    height: 190px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.13), transparent 72%);
+    clip-path: polygon(6% 0, 87% 9%, 100% 43%, 76% 63%, 27% 44%, 0 18%);
+    filter: blur(7px);
+    opacity: 0.72;
+    transform: skewX(-9deg);
+  }
+
+  .wind-toggle-panel {
+    animation: wind-panel-enter 180ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  @media (max-height: 760px) {
+    .wind-header {
+      padding-top: 20px !important;
+    }
+
+    .wind-nav {
+      gap: 18px;
+    }
+
+    .wind-hx-logo {
+      font-size: 68px !important;
+    }
+
+    .wind-divider {
+      top: 180px;
+      opacity: 0.72;
+    }
+
+    .wind-car {
+      top: 42%;
+      height: 136px;
+      left: 14%;
+      right: 15%;
+    }
+
+    .wind-streams {
+      inset: 22% -5% 25%;
+    }
+
+    .wind-reflection {
+      top: 58%;
+      height: 130px;
+      opacity: 0.52;
+    }
+
+    .wind-status-card {
+      bottom: 18px;
+      width: 132px !important;
+      padding: 13px 15px !important;
+    }
+
+    .wind-status-card dl {
+      gap: 8px;
+    }
+
+    .wind-status-card dd {
+      font-size: 18px;
+      margin-top: 1px;
+    }
+
+    .wind-shell > div.grid-cols-6 {
+      bottom: 18px;
+      width: min(650px, 61vw);
+      padding: 13px 18px;
+      border-radius: 14px;
+    }
+
+    .wind-shell > div.grid-cols-6 span {
+      font-size: 8px;
+    }
+
+    .wind-shell > div.grid-cols-6 b {
+      margin-top: 6px;
+      font-size: 16px;
+    }
+
+    .wind-copilot-orb {
+      bottom: 18px !important;
+      gap: 7px;
+      font-size: 11px;
+    }
+
+    .wind-copilot-orb > span:first-child {
+      width: 66px;
+      height: 66px;
+    }
+
+    .wind-copilot-orb svg {
+      width: 48px;
+      height: 36px;
+    }
+
+    .wind-toggle-panel {
+      top: 116px;
+      max-height: calc(100vh - 150px);
+      overflow: auto;
+    }
+  }
+
+  @media (max-width: 1180px) {
+    .wind-nav {
+      gap: 14px;
+    }
+
+    .wind-hx-logo {
+      font-size: 72px;
+    }
+
+    .wind-shell header button[aria-controls] {
+      width: 72px;
+      font-size: 10px;
+      gap: 8px;
+    }
+
+    .wind-shell header button[aria-controls] > span:first-child {
+      width: 58px;
+      height: 58px;
+    }
+
+    .wind-shell header button[aria-controls] svg {
+      width: 24px;
+      height: 24px;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .wind-header {
+      grid-template-columns: 1fr auto 1fr;
+      padding-inline: 14px;
+      padding-top: 18px !important;
+    }
+
+    .wind-nav {
+      gap: 6px;
+    }
+
+    .wind-hx-logo {
+      font-size: 44px !important;
+      transform: translateY(4px);
+    }
+
+    .wind-shell header button[aria-controls] {
+      width: 52px;
+      gap: 5px;
+      font-size: 8px;
+      letter-spacing: 0;
+    }
+
+    .wind-shell header button[aria-controls] > span:first-child {
+      width: 42px;
+      height: 42px;
+    }
+
+    .wind-shell header button[aria-controls] svg {
+      width: 19px;
+      height: 19px;
+    }
+
+    .wind-divider {
+      top: 130px;
+    }
+
+    .wind-car {
+      left: 2%;
+      right: 2%;
+      top: 39%;
+      height: 112px;
+    }
+
+    .wind-streams {
+      inset: 20% -18% 28%;
+    }
+
+    .wind-status-card {
+      left: 14px;
+      bottom: 12px;
+      width: 116px !important;
+      padding: 10px 12px !important;
+    }
+
+    .wind-status-card dt {
+      font-size: 8px;
+    }
+
+    .wind-status-card dd {
+      font-size: 14px;
+    }
+
+    .wind-shell > div.grid-cols-6 {
+      bottom: 12px;
+      left: 50%;
+      width: min(315px, 47vw);
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      row-gap: 8px;
+      padding: 10px 12px;
+    }
+
+    .wind-shell > div.grid-cols-6 span {
+      font-size: 7px;
+    }
+
+    .wind-shell > div.grid-cols-6 b {
+      font-size: 13px;
+    }
+
+    .wind-copilot-orb {
+      right: 14px;
+      bottom: 12px !important;
+      font-size: 9px;
+    }
+
+    .wind-copilot-orb > span:first-child {
+      width: 54px;
+      height: 54px;
+    }
+
+    .wind-copilot-orb svg {
+      width: 39px;
+      height: 30px;
+    }
+
+    .wind-toggle-panel {
+      left: 14px !important;
+      right: 14px !important;
+      top: 94px !important;
+      width: auto !important;
+      max-height: calc(100vh - 118px);
+      transform: none !important;
+    }
+  }
+
+  @keyframes wind-panel-enter {
+    from {
+      opacity: 0;
+      transform: translateY(-8px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes wind-line-drift {
+    from {
+      translate: -1.5% 0;
+    }
+    to {
+      translate: 2% 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .wind-toggle-panel,
+    .wind-streams span {
+      animation: none;
+    }
+
+    .wind-shell * {
+      transition-duration: 0ms !important;
+    }
   }
 }

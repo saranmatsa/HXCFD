@@ -28,6 +28,14 @@ import {
 type AppScreen = "wind-tunnel" | "projects" | "profile" | "documentation";
 type TunnelStep = "import" | "mesh" | "setup" | "run" | "results" | "improve";
 type BackendReadiness = "checking" | "starting" | "ready" | "offline";
+type WindToggle =
+  | "geometry"
+  | "mesh"
+  | "simulation"
+  | "search"
+  | "settings"
+  | "profile"
+  | "copilot";
 type IconName =
   | "tunnel"
   | "projects"
@@ -55,7 +63,8 @@ type IconName =
   | "help"
   | "archive"
   | "trash"
-  | "eye";
+  | "eye"
+  | "wind";
 
 type Field = {
   label: string;
@@ -185,6 +194,13 @@ const iconPaths: Record<IconName, ReactNode> = {
     <>
       <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
       <circle cx="12" cy="12" r="2.5" />
+    </>
+  ),
+  wind: (
+    <>
+      <path d="M3 8h10a3 3 0 1 0-3-3" />
+      <path d="M4 12h15a3 3 0 1 1-3 3" />
+      <path d="M3 17h8" />
     </>
   ),
 };
@@ -558,6 +574,138 @@ function FieldControl({
   );
 }
 
+function WindOrbButton({
+  id,
+  label,
+  icon,
+  activeToggle,
+  onToggle,
+}: {
+  id: WindToggle;
+  label: string;
+  icon: IconName;
+  activeToggle: WindToggle | null;
+  onToggle: (id: WindToggle) => void;
+}) {
+  const active = activeToggle === id;
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(id)}
+      aria-expanded={active}
+      aria-controls={`wind-panel-${id}`}
+      className={`group grid w-[86px] justify-items-center gap-3 text-[12px] uppercase tracking-[.03em] transition duration-300 ease-out ${
+        active ? "text-white" : "text-[#b6b6b7] hover:text-white"
+      }`}
+    >
+      <span
+        className={`grid h-[72px] w-[72px] place-items-center rounded-full border bg-black/35 shadow-[inset_0_0_24px_rgba(255,255,255,.035)] backdrop-blur-sm transition duration-300 ease-out group-hover:-translate-y-0.5 group-hover:border-white/45 group-hover:shadow-[0_0_34px_rgba(255,255,255,.16),inset_0_0_28px_rgba(255,255,255,.06)] ${
+          active
+            ? "border-white/70 shadow-[0_0_42px_rgba(255,255,255,.25),inset_0_0_28px_rgba(255,255,255,.08)]"
+            : "border-white/18"
+        }`}
+      >
+        <Icon name={icon} size={30} />
+      </span>
+      <span className="drop-shadow-[0_0_8px_rgba(255,255,255,.22)]">
+        {label}
+      </span>
+    </button>
+  );
+}
+
+function WindVehicleScene({ previewSource }: { previewSource?: string }) {
+  if (previewSource) {
+    return (
+      <div className="absolute inset-x-[10%] top-[28%] h-[48%] overflow-hidden">
+        <Viewport3D previewPath={previewSource} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div className="wind-streams" aria-hidden="true">
+        {Array.from({ length: 19 }, (_, index) => (
+          <span
+            key={index}
+            style={{
+              top: `${18 + index * 2.9}%`,
+              width: `${96 - Math.abs(index - 8) * 1.7}%`,
+              opacity: 0.15 + index * 0.019,
+              transform: `translateX(${index % 2 ? -4 : 1}%)`,
+            }}
+          />
+        ))}
+      </div>
+      <div className="wind-car" aria-hidden="true">
+        <span className="car-body" />
+        <span className="car-canopy" />
+        <span className="car-highlight" />
+        <span className="car-tail" />
+        <span className="car-wake" />
+      </div>
+      <div className="wind-reflection" aria-hidden="true" />
+    </div>
+  );
+}
+
+function WindMetricStrip() {
+  const metrics = [
+    ["DRAG COEFFICIENT", "0.0124"],
+    ["LIFT COEFFICIENT", "0.0021"],
+    ["SIDE FORCE COEFFICIENT", "0.0000"],
+    ["PRESSURE RATIO", "2.85"],
+    ["HEAT FLUX", "18.7 kW/m²"],
+    ["CPU USAGE", "78 %"],
+  ];
+  return (
+    <div className="absolute bottom-[6.2%] left-1/2 grid w-[min(980px,66vw)] -translate-x-1/2 grid-cols-6 rounded-[18px] border border-white/28 bg-black/28 px-8 py-5 shadow-[0_0_30px_rgba(255,255,255,.08),inset_0_0_28px_rgba(255,255,255,.035)] backdrop-blur-sm">
+      {metrics.map(([label, value]) => (
+        <div key={label} className="text-center">
+          <span className="block text-[10px] uppercase text-white/56">
+            {label}
+          </span>
+          <b className="mt-3 block font-data text-[24px] font-normal tracking-[-.06em] text-white/78">
+            {value}
+          </b>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function WindPanel({
+  id,
+  title,
+  children,
+  align = "left",
+}: {
+  id: WindToggle;
+  title: string;
+  children: ReactNode;
+  align?: "left" | "right" | "center";
+}) {
+  const position =
+    align === "right"
+      ? "right-[3.2%] top-[145px]"
+      : align === "center"
+        ? "left-1/2 top-[168px] -translate-x-1/2"
+        : "left-[3.2%] top-[145px]";
+  return (
+    <section
+      id={`wind-panel-${id}`}
+      className={`wind-toggle-panel absolute z-30 w-[min(420px,31vw)] rounded-[18px] border border-white/22 bg-black/68 p-5 text-white shadow-[0_22px_70px_rgba(0,0,0,.7),inset_0_0_38px_rgba(255,255,255,.04)] backdrop-blur-md ${position}`}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <span className="block text-[10px] uppercase tracking-[.14em] text-white/48">
+        {title}
+      </span>
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
 function Maverick({
   open,
   onClose,
@@ -661,7 +809,7 @@ function WindTunnel({
   const [running, setRunning] = useState(false);
   const [detail, setDetail] = useState("");
   const [execution, setExecution] = useState<WorkflowExecution>();
-  const [maverickOpen, setMaverickOpen] = useState(true);
+  const [activeToggle, setActiveToggle] = useState<WindToggle | null>(null);
   const definition = steps[step];
   const persistedFields = useMemo<Record<string, string>>(() => {
     const configuration = snapshot?.stages.find(
@@ -726,6 +874,21 @@ function WindTunnel({
     setArtifactContent(undefined);
     setArtifactNotice("");
   }, [projectId, definition.backend]);
+
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setActiveToggle(null);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, []);
+
+  const toggleMenu = (id: WindToggle) => {
+    setActiveToggle((current) => (current === id ? null : id));
+    if (id === "geometry") setStep("import");
+    if (id === "mesh") setStep("mesh");
+    if (id === "simulation" && !["setup", "run"].includes(step)) setStep("setup");
+  };
 
   const viewArtifact = async (artifact: WorkflowArtifact) => {
     setArtifactBusy(artifact.artifact_id);
@@ -824,348 +987,310 @@ function WindTunnel({
     }
   };
 
-  return (
-    <section className="flex min-h-0 flex-1 bg-lab-canvas">
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-[58px] shrink-0 items-center justify-between border-b border-lab-line bg-[#060809] px-5">
+  const renderWorkflowPanel = (title: string, stepsToShow: TunnelStep[]) => (
+    <WindPanel
+      id={activeToggle ?? "geometry"}
+      title={title}
+      align={activeToggle === "simulation" ? "center" : "left"}
+    >
+      <div className="mb-4 flex gap-2">
+        {stepsToShow.map((item) => (
+          <button
+            key={item}
+            onClick={() => setStep(item)}
+            className={`rounded-full border px-3 py-1.5 text-[10px] uppercase tracking-[.08em] transition ${
+              step === item
+                ? "border-white/70 bg-white/12 text-white"
+                : "border-white/16 text-white/52 hover:border-white/38 hover:text-white"
+            }`}
+          >
+            {steps[item].label}
+          </button>
+        ))}
+      </div>
+      <div className="rounded-[12px] border border-white/12 bg-white/[.035] p-4">
+        <div className="flex items-start justify-between gap-3">
           <div>
-            <span className="text-[10px] uppercase tracking-[.1em] text-lab-dim">
-              Wind tunnel
-            </span>
-            <h1 className="mt-0.5 text-[20px] font-medium tracking-[-.02em] text-lab-ink">
+            <h2 className="text-[18px] font-medium tracking-[-.02em] text-white">
               {definition.title}
-            </h1>
+            </h2>
+            <p className="mt-2 text-[11px] leading-5 text-white/58">
+              {definition.description}
+            </p>
           </div>
-          <div className="flex items-center gap-2">
-            <span
-              className={`rounded-full border px-2 py-1 text-[9px] font-medium uppercase tracking-[.08em] ${statusStyle(workflowStatus)}`}
-            >
-              {workflowStatus === "attention"
-                ? "Needs attention"
-                : workflowStatus}
-            </span>
-            <button
-              onClick={() => setMaverickOpen((value) => !value)}
-              className="flex h-8 items-center gap-1.5 rounded-[3px] border border-lab-line bg-lab-surface px-2.5 text-[10px] text-lab-muted transition-colors duration-100 ease-instrument hover:border-lab-strongLine hover:bg-lab-hover hover:text-lab-ink"
-            >
-              <MaverickMark className="h-4 w-6" />
-              Maverick
-            </button>
+          <span
+            className={`shrink-0 rounded-full border px-2 py-1 text-[9px] uppercase ${statusStyle(workflowStatus)}`}
+          >
+            {workflowStatus}
+          </span>
+        </div>
+        <div className="mt-4 grid gap-3">
+          {definition.fields.map((field) =>
+            field.label === "Source" ? (
+              <label key={field.label} className="grid gap-1.5 text-[11px] text-white/58">
+                <span>CAD source</span>
+                <button
+                  onClick={() => void chooseSource()}
+                  className="flex h-9 items-center justify-between rounded-[8px] border border-white/18 bg-black/35 px-3 text-left text-[11px] text-white/74 hover:border-white/45"
+                >
+                  <span className="truncate">
+                    {values.Source || "Choose local CAD file"}
+                  </span>
+                  <Icon name="folder" size={14} />
+                </button>
+              </label>
+            ) : (
+              <FieldControl
+                key={field.label}
+                field={field}
+                value={values[field.label] ?? ""}
+                onChange={(value) =>
+                  setValues((current) => ({ ...current, [field.label]: value }))
+                }
+              />
+            ),
+          )}
+          <button
+            onClick={() => setAdvanced((value) => !value)}
+            className="justify-self-start text-[10px] uppercase tracking-[.08em] text-white/50 hover:text-white"
+          >
+            {advanced ? "Hide advanced" : "Advanced"}
+          </button>
+          {advanced && (
+            <div className="grid gap-3 border-t border-white/12 pt-3">
+              {(definition.advanced ?? []).map((field) => (
+                <FieldControl
+                  key={field.label}
+                  field={field}
+                  value={values[field.label] ?? ""}
+                  onChange={(value) =>
+                    setValues((current) => ({ ...current, [field.label]: value }))
+                  }
+                />
+              ))}
+            </div>
+          )}
+          <button
+            onClick={() => void execute()}
+            disabled={running}
+            className="mt-1 flex h-10 items-center justify-center gap-2 rounded-full border border-white/30 bg-white/12 px-4 text-[11px] uppercase tracking-[.08em] text-white transition hover:border-white/60 hover:bg-white/18 disabled:opacity-55"
+          >
+            <Icon name={running ? "gear" : "play"} size={14} />
+            {running ? "Working" : definition.action}
+          </button>
+          {detail && (
+            <details className="rounded-[8px] border border-red-300/25 bg-red-950/20 p-3 text-[10px] text-red-100/80">
+              <summary>{shortError(detail)}</summary>
+              <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap font-data text-[9px]">
+                {detail}
+              </pre>
+            </details>
+          )}
+          {stageOutput?.artifacts?.length ? (
+            <details className="text-[10px] text-white/56">
+              <summary className="cursor-pointer text-white/78">
+                {stageOutput.artifacts.length} artifact(s) saved
+              </summary>
+              <div className="mt-2 grid gap-1.5">
+                {stageOutput.artifacts.map((artifact) => (
+                  <div
+                    key={artifact.artifact_id}
+                    className="flex items-center gap-2 rounded-[8px] border border-white/12 bg-black/26 px-2 py-1.5"
+                  >
+                    <span className="min-w-0 flex-1 truncate font-data text-[9px]">
+                      {artifact.name}
+                    </span>
+                    {artifact.readable && (
+                      <button
+                        onClick={() => void viewArtifact(artifact)}
+                        disabled={artifactBusy === artifact.artifact_id}
+                        className="text-white/70 hover:text-white"
+                      >
+                        View
+                      </button>
+                    )}
+                    <button
+                      onClick={() => void exportArtifact(artifact)}
+                      disabled={artifactBusy === artifact.artifact_id}
+                      className="text-white/46 hover:text-white"
+                    >
+                      Export
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </details>
+          ) : null}
+          {artifactNotice && (
+            <p className="text-[10px] text-emerald-200/80">{artifactNotice}</p>
+          )}
+          {artifactContent && (
+            <details open className="rounded-[8px] border border-white/12 bg-black/24 p-3 text-[10px] text-white/58">
+              <summary className="cursor-pointer text-white/78">
+                {artifactContent.artifact.name}
+              </summary>
+              <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap font-data text-[9px]">
+                {artifactContent.encoding === "utf-8"
+                  ? artifactContent.content
+                  : "Binary evidence is loaded in the tunnel viewport when previewable."}
+              </pre>
+            </details>
+          )}
+        </div>
+      </div>
+    </WindPanel>
+  );
+
+  return (
+    <section
+      className="wind-shell relative h-[100dvh] overflow-hidden bg-black text-white"
+      onClick={() => setActiveToggle(null)}
+    >
+      <WindVehicleScene previewSource={previewSource} />
+      <header className="wind-header absolute inset-x-0 top-0 z-20 grid grid-cols-[1fr_auto_1fr] items-start px-[2.6%] pt-10">
+        <nav className="wind-nav flex gap-8" onClick={(event) => event.stopPropagation()}>
+          <WindOrbButton id="geometry" label="Geometry" icon="projects" activeToggle={activeToggle} onToggle={toggleMenu} />
+          <WindOrbButton id="mesh" label="Mesh" icon="mesh" activeToggle={activeToggle} onToggle={toggleMenu} />
+          <WindOrbButton id="simulation" label="Simulation" icon="wind" activeToggle={activeToggle} onToggle={toggleMenu} />
+        </nav>
+        <div className="pt-1 text-center">
+          <div className="wind-hx-logo text-[92px] font-semibold leading-none tracking-[-.16em] text-white">
+            HX
           </div>
-        </header>
-        <nav className="flex h-12 shrink-0 items-stretch gap-1 overflow-x-auto border-b border-lab-line bg-[#080a0c] px-4">
-          {orderedSteps.map((item, index) => {
-            const itemDefinition = steps[item];
-            const status = stageState(snapshot, itemDefinition.backend);
-            return (
+        </div>
+        <nav className="wind-nav flex justify-end gap-8" onClick={(event) => event.stopPropagation()}>
+          <WindOrbButton id="search" label="Search" icon="search" activeToggle={activeToggle} onToggle={toggleMenu} />
+          <WindOrbButton id="settings" label="Settings" icon="gear" activeToggle={activeToggle} onToggle={toggleMenu} />
+          <WindOrbButton id="profile" label="Profile" icon="profile" activeToggle={activeToggle} onToggle={toggleMenu} />
+        </nav>
+      </header>
+
+      <div className="wind-divider absolute inset-x-0 top-[238px] z-10 h-px bg-white/10 shadow-[0_18px_0_rgba(255,255,255,.08),0_38px_0_rgba(255,255,255,.07),0_60px_0_rgba(255,255,255,.06)]" />
+
+      <aside className="wind-status-card absolute bottom-[6.2%] left-[2.6%] z-20 w-[166px] rounded-[12px] border border-white/28 bg-black/28 px-5 py-5 shadow-[inset_0_0_26px_rgba(255,255,255,.035)] backdrop-blur-sm">
+        <dl className="grid gap-4">
+          <div>
+            <dt className="text-[10px] uppercase text-white/48">Mach</dt>
+            <dd className="font-data text-[27px] font-normal text-white/76">2.34</dd>
+          </div>
+          <div>
+            <dt className="text-[10px] uppercase text-white/48">AOA</dt>
+            <dd className="font-data text-[24px] font-normal text-white/72">0.00 °</dd>
+          </div>
+          <div>
+            <dt className="text-[10px] uppercase text-white/48">Re</dt>
+            <dd className="font-data text-[20px] font-normal text-white/72">
+              8.14×10⁶
+              <span className="text-[13px]"> 1/m</span>
+            </dd>
+          </div>
+          <div>
+            <dt className="text-[10px] uppercase text-white/48">Status</dt>
+            <dd className="text-[20px] uppercase tracking-[.02em] text-white/78">
+              {running ? "Running" : "Ready"}
+            </dd>
+          </div>
+        </dl>
+      </aside>
+
+      <WindMetricStrip />
+
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          toggleMenu("copilot");
+        }}
+        className={`wind-copilot-orb absolute bottom-[6.2%] right-[3.9%] z-20 grid justify-items-center gap-3 text-[14px] uppercase text-white/68 transition hover:text-white ${
+          activeToggle === "copilot" ? "text-white" : ""
+        }`}
+        aria-expanded={activeToggle === "copilot"}
+      >
+        <span className="grid h-[92px] w-[92px] place-items-center rounded-full border border-white/42 bg-white/[.035] shadow-[0_0_30px_rgba(255,255,255,.16),inset_0_0_28px_rgba(255,255,255,.08)]">
+          <MaverickMark className="h-12 w-16" />
+        </span>
+        <span>Copilot</span>
+      </button>
+
+      {activeToggle === "geometry" &&
+        renderWorkflowPanel("Geometry", ["import"])}
+      {activeToggle === "mesh" && renderWorkflowPanel("Mesh", ["mesh"])}
+      {activeToggle === "simulation" &&
+        renderWorkflowPanel("Simulation", ["setup", "run", "results"])}
+      {activeToggle === "search" && (
+        <WindPanel id="search" title="Search" align="right">
+          <input
+            autoFocus
+            placeholder="Search / Command Palette"
+            className="h-11 w-full rounded-full border border-white/18 bg-black/40 px-4 text-[13px] text-white outline-none placeholder:text-white/36"
+          />
+          <div className="mt-4 grid gap-2">
+            {orderedSteps.map((item) => (
               <button
                 key={item}
-                onClick={() => setStep(item)}
-                className={`group relative flex min-w-[98px] items-center gap-2 px-2.5 text-left transition-colors duration-100 ease-instrument ${step === item ? "bg-[#10151c] text-lab-ink" : "text-lab-muted hover:bg-lab-hover hover:text-lab-ink"}`}
+                onClick={() => {
+                  setStep(item);
+                  setActiveToggle(null);
+                }}
+                className="flex h-9 items-center gap-3 rounded-full px-3 text-left text-[11px] text-white/62 hover:bg-white/10 hover:text-white"
               >
-                <span
-                  className={`grid h-5 w-5 place-items-center rounded-[3px] border text-[9px] font-data ${step === item ? "border-lab-blue bg-lab-blue text-white" : status === "complete" ? "border-lab-green/50 text-lab-green" : "border-lab-line text-lab-dim"}`}
-                >
-                  {status === "complete" ? (
-                    <Icon name="check" size={12} />
-                  ) : (
-                    String(index + 1).padStart(2, "0")
-                  )}
-                </span>
-                <span className="min-w-0">
-                  <b className="block whitespace-nowrap text-[10px] font-medium">
-                    {itemDefinition.label}
-                  </b>
-                  <small className="block text-[9px] text-lab-dim">
-                    {status}
-                  </small>
-                </span>
-                {step === item && (
-                  <i className="absolute inset-x-0 bottom-0 h-px bg-lab-blue" />
-                )}
+                <Icon name={steps[item].icon} size={15} />
+                {steps[item].label}
               </button>
-            );
-          })}
-        </nav>
-        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_300px] gap-3 overflow-hidden p-3">
-          <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_176px] gap-3">
-            <Panel
-              title="Tunnel workspace"
-              action={
-                <div className="flex items-center gap-1 text-[9px] text-lab-dim">
-                  <span className="h-1.5 w-1.5 rounded-full bg-lab-green" />
-                  Local
-                </div>
-              }
-              className="min-h-0"
-            >
-              <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_260px]">
-                <div className="relative min-h-0 border-r border-lab-line bg-[#030405]">
-                  {typeof previewSource === "string" ? (
-                    <Viewport3D previewPath={previewSource} />
-                  ) : (
-                    <div className="flex h-full flex-col items-center justify-center px-8 text-center">
-                      <div className="grid h-12 w-12 place-items-center rounded-[4px] border border-lab-line bg-lab-surface text-lab-muted">
-                        <Icon name={definition.icon} size={22} />
-                      </div>
-                      <h2 className="mt-4 text-[13px] font-medium text-lab-ink">
-                        {step === "import"
-                          ? "No geometry loaded"
-                          : step === "results"
-                            ? "No result dataset published"
-                            : "No tunnel evidence for this stage yet"}
-                      </h2>
-                      <p className="mt-2 max-w-[330px] text-[11px] leading-5 text-lab-muted">
-                        {step === "import"
-                          ? "Select a local CAD source to begin the engineering workflow."
-                          : "Run the required upstream stage to publish real project evidence here."}
-                      </p>
-                    </div>
-                  )}
-                  <div className="absolute bottom-3 left-3 flex items-center gap-3 rounded-[3px] border border-lab-line bg-[#080a0c]/95 px-2 py-1.5 font-data text-[9px] text-lab-muted">
-                    <span className="text-lab-green">Y</span>
-                    <span className="text-lab-red">X</span>
-                    <span className="text-[#5687e8]">Z</span>
-                    <span>LOCAL EVIDENCE</span>
-                  </div>
-                </div>
-                <div className="min-h-0 overflow-auto bg-lab-surface">
-                  <div className="border-b border-lab-line p-3">
-                    <span className="text-[9px] uppercase tracking-[.1em] text-lab-dim">
-                      Stage configuration
-                    </span>
-                    <p className="mt-1 text-[11px] leading-5 text-lab-muted">
-                      {definition.description}
-                    </p>
-                  </div>
-                  <div className="grid gap-3 p-3">
-                    {definition.fields.length ? (
-                      definition.fields.map((field) => (
-                        <div key={field.label} className="space-y-1">
-                          {field.label === "Source" ? (
-                            <label className="grid gap-1.5 text-[11px] text-lab-muted">
-                              <span>CAD source</span>
-                              <button
-                                onClick={() => void chooseSource()}
-                                className="flex h-8 w-full items-center justify-between rounded-[3px] border border-lab-line bg-lab-raised px-2 text-left text-[10px] text-lab-muted transition-colors hover:border-lab-strongLine hover:bg-lab-hover"
-                              >
-                                <span className="truncate">
-                                  {values.Source || "Choose local CAD file"}
-                                </span>
-                                <Icon name="folder" size={14} />
-                              </button>
-                            </label>
-                          ) : (
-                            <FieldControl
-                              field={field}
-                              value={values[field.label] ?? ""}
-                              onChange={(value) =>
-                                setValues((current) => ({
-                                  ...current,
-                                  [field.label]: value,
-                                }))
-                              }
-                            />
-                          )}
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-[11px] leading-5 text-lab-muted">
-                        No additional configuration is required for this
-                        evidence view.
-                      </p>
-                    )}
-                    <button
-                      onClick={() => setAdvanced((value) => !value)}
-                      className="flex items-center gap-1 text-[10px] text-lab-muted transition-colors hover:text-lab-ink"
-                    >
-                      <Icon name="chevron" size={13} />
-                      {advanced ? "Hide" : "Show"} advanced controls
-                    </button>
-                    {advanced && (
-                      <div className="grid gap-3 border-t border-lab-line pt-3">
-                        {(definition.advanced ?? []).map((field) => (
-                          <FieldControl
-                            key={field.label}
-                            field={field}
-                            value={values[field.label] ?? ""}
-                            onChange={(value) =>
-                              setValues((current) => ({
-                                ...current,
-                                [field.label]: value,
-                              }))
-                            }
-                          />
-                        ))}
-                      </div>
-                    )}
-                    <button
-                      onClick={() => void execute()}
-                      disabled={running}
-                      className="flex h-9 items-center justify-center gap-2 rounded-[3px] border border-lab-blue bg-lab-blue px-3 text-[11px] font-medium text-white transition-colors duration-100 ease-instrument hover:bg-lab-blueHover disabled:opacity-50"
-                    >
-                      <Icon name={running ? "gear" : "play"} size={15} />
-                      {running
-                        ? "Executing local workflow…"
-                        : definition.action}
-                    </button>
-                    {step === "improve" && (
-                      <div className="grid gap-2">
-                        <button
-                          onClick={() => void execute("optimization")}
-                          disabled={running}
-                          className="flex h-8 items-center justify-center gap-2 rounded-[3px] border border-lab-line bg-lab-raised px-3 text-[10px] text-lab-muted transition-colors hover:border-lab-strongLine hover:bg-lab-hover hover:text-lab-ink disabled:opacity-50"
-                        >
-                          <Icon name="improve" size={14} />
-                          Run optimization study
-                        </button>
-                        <button
-                          onClick={() => void execute("surrogate")}
-                          disabled={running}
-                          className="flex h-8 items-center justify-center gap-2 rounded-[3px] border border-lab-line bg-lab-raised px-3 text-[10px] text-lab-muted transition-colors hover:border-lab-strongLine hover:bg-lab-hover hover:text-lab-ink disabled:opacity-50"
-                        >
-                          <Icon name="improve" size={14} />
-                          Train local surrogate
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
+            ))}
+          </div>
+        </WindPanel>
+      )}
+      {activeToggle === "settings" && (
+        <WindPanel id="settings" title="Settings" align="right">
+          <div className="grid gap-2">
+            {engines.slice(0, 8).map((engine) => (
+              <div
+                key={engine.id}
+                className="flex items-center justify-between rounded-full border border-white/12 bg-white/[.03] px-3 py-2 text-[11px] text-white/62"
+              >
+                <span>{engine.display_name}</span>
+                <b className={engine.status === "ready" || engine.status === "bundled" ? "text-emerald-300" : "text-amber-200"}>
+                  {engine.status}
+                </b>
               </div>
-            </Panel>
-            <div className="grid min-h-0 grid-cols-[1.1fr_.9fr] gap-3">
-              <Panel title="Run evidence" className="min-h-0">
-                <div className="p-3">
-                  {detail ? (
-                    <div className="rounded-[3px] border border-lab-red/40 bg-[#201111] p-3">
-                      <div className="flex gap-2 text-lab-red">
-                        <Icon name="warning" size={16} />
-                        <span className="text-[11px] font-medium">
-                          {shortError(detail)}
-                        </span>
-                      </div>
-                      <details className="mt-2 text-[10px] text-lab-muted">
-                        <summary className="cursor-pointer text-[#a8c4ff]">
-                          Technical details
-                        </summary>
-                        <pre className="mt-2 max-h-20 overflow-auto whitespace-pre-wrap font-data text-[9px]">
-                          {detail}
-                        </pre>
-                      </details>
-                    </div>
-                  ) : stageOutput ? (
-                    <div className="rounded-[3px] border border-lab-green/30 bg-[#0c1710] p-3">
-                      <div className="flex gap-2 text-lab-green">
-                        <Icon name="check" size={16} />
-                        <span className="text-[11px] font-medium">
-                          {execution
-                            ? "Published to the local project"
-                            : "Latest local evidence restored"}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-[10px] leading-4 text-lab-muted">
-                        {stageOutput.artifacts.length} real artifact
-                        {stageOutput.artifacts.length === 1
-                          ? ""
-                          : "s"}{" "}
-                        recorded for this stage.
-                      </p>
-                      {stageOutput.artifacts.length > 0 && (
-                        <details className="mt-2 text-[10px] text-lab-muted">
-                          <summary className="cursor-pointer text-[#a8c4ff]">
-                            Inspect or export project evidence
-                          </summary>
-                          <div className="mt-2 grid gap-1.5">
-                            {stageOutput.artifacts.map((artifact) => (
-                              <div
-                                key={artifact.artifact_id}
-                                className="flex items-center gap-2 rounded-[3px] border border-lab-line bg-[#0a0c0e] px-2 py-1.5"
-                              >
-                                <span className="min-w-0 flex-1 truncate font-data text-[9px] text-lab-muted">
-                                  {artifact.name}
-                                </span>
-                                {artifact.readable && (
-                                  <button
-                                    onClick={() => void viewArtifact(artifact)}
-                                    disabled={artifactBusy === artifact.artifact_id}
-                                    className="text-[9px] text-[#a8c4ff] hover:text-lab-ink disabled:opacity-50"
-                                  >
-                                    View
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => void exportArtifact(artifact)}
-                                  disabled={artifactBusy === artifact.artifact_id}
-                                  className="text-[9px] text-lab-muted hover:text-lab-ink disabled:opacity-50"
-                                >
-                                  Export
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </details>
-                      )}
-                      {artifactNotice && (
-                        <p className="mt-2 text-[10px] text-lab-green">
-                          {artifactNotice}
-                        </p>
-                      )}
-                      {artifactContent && (
-                        <details open className="mt-2 text-[10px] text-lab-muted">
-                          <summary className="cursor-pointer text-[#a8c4ff]">
-                            {artifactContent.artifact.name}
-                          </summary>
-                          <pre className="mt-2 max-h-24 overflow-auto whitespace-pre-wrap font-data text-[9px]">
-                            {artifactContent.encoding === "utf-8"
-                              ? artifactContent.content
-                              : "Binary preview loaded in the tunnel workspace."}
-                          </pre>
-                        </details>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-[11px] leading-5 text-lab-muted">
-                      This panel will show the exact local outcome, validation
-                      evidence, or failure details for the selected action.
-                    </p>
-                  )}
-                </div>
-              </Panel>
-              <Panel title="Project state" className="min-h-0">
-                <dl className="grid gap-2 p-3 text-[10px]">
-                  <div className="flex justify-between gap-3">
-                    <dt className="text-lab-muted">Project</dt>
-                    <dd className="max-w-[180px] truncate font-data text-lab-ink">
-                      {projectId}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between gap-3">
-                    <dt className="text-lab-muted">Configured stages</dt>
-                    <dd className="font-data text-lab-ink">
-                      {snapshot?.stages.filter(
-                        (item) => item.status === "configured",
-                      ).length ?? 0}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between gap-3">
-                    <dt className="text-lab-muted">Recorded jobs</dt>
-                    <dd className="font-data text-lab-ink">
-                      {snapshot?.jobs.length ?? 0}
-                    </dd>
-                  </div>
-                </dl>
-              </Panel>
+            ))}
+            {!engines.length && (
+              <p className="text-[11px] leading-5 text-white/54">
+                Engine inventory appears here inside HX CFD desktop.
+              </p>
+            )}
+          </div>
+        </WindPanel>
+      )}
+      {activeToggle === "profile" && (
+        <WindPanel id="profile" title="Profile" align="right">
+          <div className="flex items-center gap-4">
+            <div className="grid h-16 w-16 place-items-center rounded-full border border-white/28 bg-white/10 text-[22px]">
+              M
+            </div>
+            <div>
+              <h2 className="text-[18px] text-white">Local Engineer</h2>
+              <p className="mt-1 text-[11px] text-white/54">{projectId}</p>
             </div>
           </div>
+          <p className="mt-5 text-[11px] leading-5 text-white/56">
+            HX CFD is running as a local-first workstation workflow. Project
+            data and generated evidence stay on this machine.
+          </p>
+        </WindPanel>
+      )}
+      {activeToggle === "copilot" && (
+        <WindPanel id="copilot" title="Maverick Copilot" align="right">
           <Maverick
-            open={maverickOpen}
-            onClose={() => setMaverickOpen(false)}
+            open
+            onClose={() => setActiveToggle(null)}
             step={step}
             execution={execution}
             engines={engines}
           />
-        </div>
-      </div>
+        </WindPanel>
+      )}
     </section>
   );
 }
@@ -1745,9 +1870,12 @@ export default function App() {
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState("");
 
+  const [backendError, setBackendError] = useState<string | null>(null);
+
   const refreshBackendHealth = async () => {
     if (!("__TAURI_INTERNALS__" in window)) {
       setBackendReadiness("offline");
+      setBackendError("Not running inside HX CFD desktop. Open the built .exe, not http://localhost:5173");
       return;
     }
 
@@ -1764,8 +1892,10 @@ export default function App() {
 
       const healthy = await checkBackendHealth();
       setBackendReadiness(healthy ? "ready" : "starting");
-    } catch {
+      setBackendError(null);
+    } catch (error) {
       setBackendReadiness("offline");
+      setBackendError(error instanceof Error ? error.message : String(error));
     }
   };
 
@@ -1838,6 +1968,25 @@ export default function App() {
     setSnapshot(nextSnapshot);
     setScreen("wind-tunnel");
   };
+
+  if (screen === "wind-tunnel") {
+    return (
+      <main className="h-[100dvh] min-w-0 overflow-hidden bg-black text-white">
+        {bridgeNotice && (
+          <div className="absolute left-1/2 top-4 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border border-amber-200/25 bg-black/75 px-4 py-2 text-[10px] text-amber-100/80 backdrop-blur">
+            <Icon name="warning" size={14} />
+            {bridgeNotice}
+          </div>
+        )}
+        <WindTunnel
+          projectId={projectId}
+          snapshot={snapshot}
+          engines={engines}
+          onSnapshot={setSnapshot}
+        />
+      </main>
+    );
+  }
 
   return (
     <main className="relative flex h-[100dvh] min-h-0 min-w-[1024px] overflow-hidden bg-lab-black text-lab-ink">
@@ -1922,14 +2071,12 @@ export default function App() {
             {bridgeNotice}
           </div>
         )}
-        {screen === "wind-tunnel" && (
-          <WindTunnel
-            projectId={projectId}
-            snapshot={snapshot}
-            engines={engines}
-            onSnapshot={setSnapshot}
-          />
-        )}{" "}
+        {backendError && (
+          <div className="flex shrink-0 items-center gap-2 border-b border-lab-red/30 bg-[#240c0c] px-4 py-2 text-[10px] text-[#f87171]">
+            <Icon name="warning" size={14} />
+            {backendError}
+          </div>
+        )}
         {screen === "projects" && (
           <Projects
             projectId={projectId}
