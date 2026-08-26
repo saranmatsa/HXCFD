@@ -198,6 +198,179 @@ pub fn configure_workflow_stage(
 }
 
 // ============================================================================
+// Workflow Execution Commands
+// ============================================================================
+
+/// Execute a configured workflow stage through the real local adapter.
+#[tauri::command]
+pub fn execute_workflow_stage(
+    state: State<AppState>,
+    project_id: String,
+    stage_id: String,
+    recipe: Option<serde_json::Value>,
+) -> Result<serde_json::Value, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?.clone();
+    let manager = state.backend_manager.lock().map_err(|e| e.to_string())?;
+    manager
+        .execute_workflow_stage(&config, &project_id, &stage_id, recipe)
+        .map_err(|e| e.to_string())
+}
+
+/// Create a durable job for a workflow stage.
+#[tauri::command]
+pub fn create_workflow_job(
+    state: State<AppState>,
+    project_id: String,
+    stage_id: String,
+    recipe: Option<serde_json::Value>,
+) -> Result<serde_json::Value, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?.clone();
+    let manager = state.backend_manager.lock().map_err(|e| e.to_string())?;
+    manager
+        .create_workflow_job(&config, &project_id, &stage_id, recipe)
+        .map_err(|e| e.to_string())
+}
+
+/// Transition a workflow job state.
+#[tauri::command]
+pub fn transition_workflow_job(
+    state: State<AppState>,
+    project_id: String,
+    job_id: String,
+    state_str: String,
+    error: Option<String>,
+    log_artifact_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?.clone();
+    let manager = state.backend_manager.lock().map_err(|e| e.to_string())?;
+    manager
+        .transition_workflow_job(&config, &project_id, &job_id, &state_str, error, log_artifact_id)
+        .map_err(|e| e.to_string())
+}
+
+/// List workflow artifacts for a project.
+#[tauri::command]
+pub fn list_workflow_artifacts(
+    state: State<AppState>,
+    project_id: String,
+    stage_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?.clone();
+    let manager = state.backend_manager.lock().map_err(|e| e.to_string())?;
+    manager
+        .list_workflow_artifacts(&config, &project_id, stage_id)
+        .map_err(|e| e.to_string())
+}
+
+/// Read a workflow artifact by ID.
+#[tauri::command]
+pub fn read_workflow_artifact(
+    state: State<AppState>,
+    project_id: String,
+    artifact_id: String,
+) -> Result<serde_json::Value, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?.clone();
+    let manager = state.backend_manager.lock().map_err(|e| e.to_string())?;
+    manager
+        .read_workflow_artifact(&config, &project_id, &artifact_id)
+        .map_err(|e| e.to_string())
+}
+
+/// Export a workflow artifact to a destination.
+#[tauri::command]
+pub fn export_workflow_artifact(
+    state: State<AppState>,
+    project_id: String,
+    artifact_id: String,
+    destination: String,
+) -> Result<serde_json::Value, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?.clone();
+    let manager = state.backend_manager.lock().map_err(|e| e.to_string())?;
+    manager
+        .export_workflow_artifact(&config, &project_id, &artifact_id, &destination)
+        .map_err(|e| e.to_string())
+}
+
+/// Create a local project.
+#[tauri::command]
+pub fn create_local_project(
+    state: State<AppState>,
+    project_id: String,
+) -> Result<serde_json::Value, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?.clone();
+    let manager = state.backend_manager.lock().map_err(|e| e.to_string())?;
+    manager
+        .create_local_project(&config, &project_id)
+        .map_err(|e| e.to_string())
+}
+
+/// Open an existing local project.
+#[tauri::command]
+pub fn open_local_project(
+    state: State<AppState>,
+    project_id: String,
+) -> Result<serde_json::Value, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?.clone();
+    let manager = state.backend_manager.lock().map_err(|e| e.to_string())?;
+    manager
+        .open_local_project(&config, &project_id)
+        .map_err(|e| e.to_string())
+}
+
+/// Rename a local project.
+#[tauri::command]
+pub fn rename_local_project(
+    state: State<AppState>,
+    project_id: String,
+    new_project_id: String,
+) -> Result<serde_json::Value, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?.clone();
+    let manager = state.backend_manager.lock().map_err(|e| e.to_string())?;
+    manager
+        .rename_local_project(&config, &project_id, &new_project_id)
+        .map_err(|e| e.to_string())
+}
+
+/// Archive a local project.
+#[tauri::command]
+pub fn archive_local_project(
+    state: State<AppState>,
+    project_id: String,
+) -> Result<serde_json::Value, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?.clone();
+    let manager = state.backend_manager.lock().map_err(|e| e.to_string())?;
+    manager
+        .archive_local_project(&config, &project_id)
+        .map_err(|e| e.to_string())
+}
+
+/// Delete a local project.
+#[tauri::command]
+pub fn delete_local_project(
+    state: State<AppState>,
+    project_id: String,
+) -> Result<serde_json::Value, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?.clone();
+    let manager = state.backend_manager.lock().map_err(|e| e.to_string())?;
+    manager
+        .delete_local_project(&config, &project_id)
+        .map_err(|e| e.to_string())
+}
+
+/// List local projects.
+#[tauri::command]
+pub fn list_local_projects(
+    state: State<AppState>,
+    include_archived: Option<bool>,
+) -> Result<serde_json::Value, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?.clone();
+    let manager = state.backend_manager.lock().map_err(|e| e.to_string())?;
+    manager
+        .list_local_projects(&config, include_archived.unwrap_or(false))
+        .map_err(|e| e.to_string())
+}
+
+// ============================================================================
 // Window Commands
 // ============================================================================
 
@@ -267,7 +440,7 @@ pub fn close_main_window(app: AppHandle) -> Result<(), String> {
 /// Get application version
 #[tauri::command]
 pub fn get_app_version() -> String {
-    env!("CARGO_PKG_VERSION").to_string()
+    std::env::var("CARGO_PKG_VERSION").unwrap_or_else(|_| "unknown".to_string())
 }
 
 /// Open a URL in the default browser

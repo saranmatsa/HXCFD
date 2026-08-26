@@ -74,6 +74,7 @@ cfd = [
     "physicsnemo-cfd>=0.1.0",
     "openfoam-parser>=0.1.0",
 ]
+cad = ["cadquery>=2.8.0", "cadquery-ocp>=7.9.3.1"]
 
 [project.scripts]
 cfd-backend = "cfd_backend.main:main"

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { Viewport3D } from "./components/viewport/Viewport3D";
+import WorkflowModule from "./components/WorkflowModule";
+import { AIGenerateTab } from "./components/AIGenerateTab";
 import {
   archiveLocalProject,
   checkBackendHealth,
@@ -25,2135 +26,515 @@ import {
   type WorkflowSnapshot,
 } from "./services/desktopWorkflow";
 
-type AppScreen = "wind-tunnel" | "projects" | "profile" | "documentation";
-type TunnelStep = "import" | "mesh" | "setup" | "run" | "results" | "improve";
+type AppScreen = "workflow" | "projects" | "settings" | "ai-generate";
 type BackendReadiness = "checking" | "starting" | "ready" | "offline";
-type WindToggle =
-  | "geometry"
-  | "mesh"
-  | "simulation"
-  | "search"
-  | "settings"
-  | "profile"
-  | "copilot";
-type IconName =
-  | "tunnel"
-  | "projects"
-  | "profile"
-  | "docs"
-  | "import"
-  | "mesh"
-  | "setup"
-  | "run"
-  | "results"
-  | "improve"
-  | "search"
-  | "bell"
-  | "chevron"
-  | "play"
-  | "gear"
-  | "plus"
-  | "close"
-  | "check"
-  | "warning"
-  | "spark"
-  | "report"
-  | "folder"
-  | "cpu"
-  | "help"
-  | "archive"
-  | "trash"
-  | "eye"
-  | "wind";
 
-type Field = {
-  label: string;
-  value: string;
-  options?: string[];
-  unit?: string;
-  placeholder?: string;
-};
+type StageId = 'geometry' | 'meshing' | 'physics' | 'solver' | 'results' | 'reports' | 'optimization' | 'surrogate';
 
-const iconPaths: Record<IconName, ReactNode> = {
-  tunnel: (
-    <>
-      <path d="M3 6h13.5A4.5 4.5 0 0 1 21 10.5V18H3z" />
-      <path d="M3 6V4h13.5A4.5 4.5 0 0 1 21 8.5v2M7 18v3m10-3v3M7 11h7" />
-    </>
-  ),
-  projects: (
-    <>
-      <path d="M3 6.5A2.5 2.5 0 0 1 5.5 4H10l2 2.5h6.5A2.5 2.5 0 0 1 21 9v8.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z" />
-      <path d="M3 9h18" />
-    </>
-  ),
-  profile: (
-    <>
-      <circle cx="12" cy="8" r="3.4" />
-      <path d="M4.5 20c.8-4 3.3-6 7.5-6s6.7 2 7.5 6" />
-    </>
-  ),
-  docs: (
-    <>
-      <path d="M5 3h11l3 3v15H5z" />
-      <path d="M16 3v4h4M8 12h8M8 16h6" />
-    </>
-  ),
-  import: (
-    <>
-      <path d="M12 15V3m0 0L7.5 7.5M12 3l4.5 4.5" />
-      <path d="M5 13v6h14v-6" />
-    </>
-  ),
+const stageNavigation = [
+  { id: 'geometry', label: 'Geometry', icon: 'import' },
+  { id: 'meshing', label: 'Meshing', icon: 'mesh' },
+  { id: 'physics', label: 'Physics', icon: 'setup' },
+  { id: 'solver', label: 'Solver', icon: 'simulate' },
+  { id: 'results', label: 'Results', icon: 'analyze' },
+  { id: 'reports', label: 'Reports', icon: 'export' },
+  { id: 'optimization', label: 'Optimization', icon: 'optimize', dividerBefore: true },
+  { id: 'surrogate', label: 'Surrogate', icon: 'optimize' },
+  { id: 'settings', label: 'Settings', icon: 'settings', dividerBefore: true },
+] as const;
+
+type NavItem = typeof stageNavigation[number];
+
+const iconPaths: Record<string, React.ReactNode> = {
+  import: <><path d="M12 15V3m0 0L7.5 7.5M12 3l4.5 4.5" /><path d="M5 13v6h14v-6" /></>,
   mesh: <path d="M4 5h16M4 12h16M4 19h16M7 3l3 18M17 3l-3 18" />,
-  setup: (
-    <>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.05 2.05-.06-.06A1.7 1.7 0 0 0 15.8 18.6a1.7 1.7 0 0 0-1 1.55v.1h-2.9v-.1a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06-2.05-2.05.06-.06A1.7 1.7 0 0 0 7.3 15a1.7 1.7 0 0 0-1.55-1H5.6v-2.9h.15a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06L8.95 6.1l.06.06A1.7 1.7 0 0 0 10.9 6.5a1.7 1.7 0 0 0 1-1.55v-.1h2.9v.1a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.05 2.05-.06.06a1.7 1.7 0 0 0-.34 1.88 1.7 1.7 0 0 0 1.55 1h.1V14h-.1a1.7 1.7 0 0 0-1.54 1Z" />
-    </>
-  ),
-  run: (
-    <>
-      <path d="M5 5h5v5H5zM14 14h5v5h-5zM7.5 10v2a2 2 0 0 0 2 2H14" />
-      <path d="m12 17 2 2 2-2" />
-    </>
-  ),
-  results: (
-    <>
-      <path d="M4 20V4M4 20h17" />
-      <path d="m7 15 4-4 3 2 5-7" />
-    </>
-  ),
-  improve: (
-    <>
-      <path d="M4 19 9 13l3 3 7-10" />
-      <path d="M15 6h4v4" />
-    </>
-  ),
-  search: (
-    <>
-      <circle cx="10.5" cy="10.5" r="6" />
-      <path d="m15 15 5 5" />
-    </>
-  ),
-  bell: <path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />,
-  chevron: <path d="m8 10 4 4 4-4" />,
-  play: <path d="m9 5 10 7-10 7z" />,
-  gear: (
-    <>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M4 12h2m12 0h2M12 4v2m0 12v2M6.3 6.3l1.4 1.4m8.6 8.6 1.4 1.4m0-11.4-1.4 1.4m-8.6 8.6-1.4 1.4" />
-    </>
-  ),
-  plus: <path d="M12 5v14M5 12h14" />,
-  close: <path d="m6 6 12 12M18 6 6 18" />,
+  setup: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.05 2.05-.06-.06A1.7 1.7 0 0 0 15.8 18.6a1.7 1.7 0 0 0-1 1.55v.1h-2.9v-.1a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06-2.05-2.05.06-.06A1.7 1.7 0 0 0 7.3 15a1.7 1.7 0 0 0-1.55-1H5.6v-2.9h.15a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06L8.95 6.1l.06.06A1.7 1.7 0 0 0 10.9 6.5a1.7 1.7 0 0 0 1-1.55v-.1h2.9v.1a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.05 2.05-.06.06a1.7 1.7 0 0 0-.34 1.88 1.7 1.7 0 0 0 1.55 1h.1V14h-.1a1.7 1.7 0 0 0-1.54 1Z" /></>,
+  simulate: <><path d="M5 5h5v5H5zM14 14h5v5h-5zM7.5 10v2a2 2 0 0 0 2 2H14" /><path d="m12 17 2 2 2-2" /></>,
+  analyze: <><path d="M4 20V4M4 20h17" /><path d="m7 15 4-4 3 2 5-7" /></>,
+  export: <><path d="M6 3h9l3 3v15H6zM14 3v4h4" /><path d="M9 12h6m-6 4h6" /></>,
+  optimize: <><path d="M4 19 9 13l3 3 7-10" /><path d="M15 6h4v4" /></>,
+  settings: <><circle cx="12" cy="12" r="3" /><path d="M4 12h2m12 0h2M12 4v2m0 12v2M6.3 6.3l1.4 1.4m8.6 8.6 1.4 1.4m0-11.4-1.4 1.4m-8.6 8.6-1.4 1.4" /></>,
+  projects: <><path d="M3 6.5A2.5 2.5 0 0 1 5.5 4H10l2 2.5h6.5A2.5 2.5 0 0 1 21 9v8.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z" /><path d="M3 9h18" /></>,
+  ai: <><path d="M12 2.8 13.9 9l6.3 1.9-6.3 1.9L12 19l-1.9-6.2-6.3-1.9L10.1 9 12 2.8Z" /></>,
+  spark: <path d="M12 2.8 13.9 9l6.3 1.9-6.3 1.9L12 19l-1.9-6.2-6.3-1.9L10.1 9 12 2.8Z" />,
+  warning: <><path d="M12 3 2.8 20h18.4L12 3Z" /><path d="M12 9v4m0 3h.01" /></>,
   check: <path d="m5 12 4 4L19 6" />,
-  warning: (
-    <>
-      <path d="M12 3 2.8 20h18.4L12 3Z" />
-      <path d="M12 9v4m0 3h.01" />
-    </>
-  ),
-  spark: (
-    <path d="M12 2.8 13.9 9l6.3 1.9-6.3 1.9L12 19l-1.9-6.2-6.3-1.9L10.1 9 12 2.8Z" />
-  ),
-  report: (
-    <>
-      <path d="M6 3h9l3 3v15H6zM14 3v4h4" />
-      <path d="M9 12h6m-6 4h6" />
-    </>
-  ),
-  folder: (
-    <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2.5h6.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z" />
-  ),
-  cpu: (
-    <>
-      <rect x="7" y="7" width="10" height="10" rx="1" />
-      <path d="M9 1v3m6-3v3M9 20v3m6-3v3M1 9h3m16 0h3M1 15h3m16 0h3" />
-    </>
-  ),
-  help: (
-    <>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M9.6 9a2.5 2.5 0 1 1 4.52 1.48c-.7.9-2.12 1.37-2.12 2.52" />
-      <path d="M12 17h.01" />
-    </>
-  ),
-  archive: (
-    <>
-      <path d="M4 7h16v13H4zM3 4h18v3H3z" />
-      <path d="M9 12h6" />
-    </>
-  ),
-  trash: (
-    <>
-      <path d="M4 7h16M10 11v5m4-5v5M6 7l1 14h10l1-14M9 7V4h6v3" />
-    </>
-  ),
-  eye: (
-    <>
-      <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
-      <circle cx="12" cy="12" r="2.5" />
-    </>
-  ),
-  wind: (
-    <>
-      <path d="M3 8h10a3 3 0 1 0-3-3" />
-      <path d="M4 12h15a3 3 0 1 1-3 3" />
-      <path d="M3 17h8" />
-    </>
-  ),
+  play: <path d="m9 5 10 7-10 7z" />,
+  chevron: <path d="m8 10 4 4 4-4" />,
+  folder: <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2.5h6.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z" />,
 };
 
-function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
-  return (
-    <svg
-      aria-hidden="true"
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.55"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      {iconPaths[name]}
-    </svg>
-  );
-}
+const Icon = ({ name, size = 16 }: { name: string; size?: number }) => (
+  <svg className="icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {iconPaths[name]}
+  </svg>
+);
 
-function MaverickMark({ className = "h-7 w-10" }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 96 54"
-      fill="none"
-      aria-label="Maverick"
-    >
-      <path
-        d="M8 27C8 13 25 7 48 7s40 6 40 20-17 20-40 20S8 41 8 27Z"
-        stroke="currentColor"
-        strokeWidth="3.8"
-      />
-      <path
-        d="M29 35V19l19 17 19-17v16"
-        stroke="currentColor"
-        strokeWidth="4.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-const nav: Array<{ id: AppScreen; label: string; icon: IconName }> = [
-  { id: "wind-tunnel", label: "Wind Tunnel", icon: "tunnel" },
-  { id: "projects", label: "Projects", icon: "projects" },
-  { id: "profile", label: "Profile", icon: "profile" },
-  { id: "documentation", label: "Documentation", icon: "docs" },
-];
-
-const steps: Record<
-  TunnelStep,
-  {
-    label: string;
-    backend: string;
-    icon: IconName;
-    title: string;
-    description: string;
-    action: string;
-    fields: Field[];
-    advanced?: Field[];
-  }
-> = {
-  import: {
-    label: "Import + prepare",
-    backend: "geometry",
-    icon: "import",
-    title: "Bring the model into the tunnel",
-    description:
-      "Choose a solid CAD exchange file. HX CFD prepares STEP, IGES, or BREP geometry before any mesh is created.",
-    action: "Prepare geometry",
-    fields: [
-      {
-        label: "Source",
-        value: "",
-        placeholder: "Select a STEP, IGES, or BREP solid",
-      },
-    ],
-    advanced: [
-      {
-        label: "Units",
-        value: "Millimeters",
-        options: ["Millimeters", "Meters", "Inches"],
-      },
-    ],
-  },
-  mesh: {
-    label: "Mesh",
-    backend: "meshing",
-    icon: "mesh",
-    title: "Build a trustworthy flow volume",
-    description:
-      "Select the mesh intent. Use the Geometry report's surface IDs to name flow boundaries; HX CFD never guesses an inlet or outlet.",
-    action: "Generate mesh",
-    fields: [
-      {
-        label: "Mesh quality",
-        value: "Balanced",
-        options: ["Fast", "Balanced", "Fine"],
-      },
-    ],
-    advanced: [
-      { label: "Base size", value: "1.20", unit: "mm" },
-      {
-        label: "Boundary layers",
-        value: "12",
-        options: ["0", "6", "12", "18"],
-      },
-      { label: "Growth rate", value: "1.18" },
-      {
-        label: "Inlet surface IDs",
-        value: "",
-        placeholder: "Geometry report IDs, e.g. 1",
-      },
-      {
-        label: "Outlet surface IDs",
-        value: "",
-        placeholder: "Geometry report IDs, e.g. 2",
-      },
-      {
-        label: "Wall surface IDs",
-        value: "",
-        placeholder: "Optional comma-separated IDs",
-      },
-      {
-        label: "Symmetry surface IDs",
-        value: "",
-        placeholder: "Optional comma-separated IDs",
-      },
-      {
-        label: "Unassigned surfaces",
-        value: "Keep as unassigned patch",
-        options: ["Keep as unassigned patch", "Group remaining as walls"],
-      },
-    ],
-  },
-  setup: {
-    label: "Setup",
-    backend: "physics",
-    icon: "setup",
-    title: "Set the aerodynamic case",
-    description:
-      "Define the fluid and turbulence model before the solver is armed. Advanced inputs remain available for engineering review.",
-    action: "Save simulation setup",
-    fields: [
-      {
-        label: "Fluid",
-        value: "Air (ideal gas)",
-        options: ["Air (ideal gas)", "Water (liquid)"],
-      },
-      {
-        label: "Energy equation",
-        value: "Disabled",
-        options: ["Enabled", "Disabled"],
-      },
-    ],
-    advanced: [
-      {
-        label: "Turbulence model",
-        value: "k-ω SST",
-        options: ["k-ε Realizable", "k-ω SST"],
-      },
-      { label: "Reference pressure", value: "101325", unit: "Pa" },
-      {
-        label: "Inlet patch",
-        value: "inlet",
-        placeholder: "Named OpenFOAM inlet patch",
-      },
-      {
-        label: "Outlet patch",
-        value: "outlet",
-        placeholder: "Named OpenFOAM outlet patch",
-      },
-      {
-        label: "Wall patches",
-        value: "walls",
-        placeholder: "Comma-separated named wall patches",
-      },
-      {
-        label: "Symmetry patches",
-        value: "",
-        placeholder: "Optional comma-separated patches",
-      },
-      { label: "Inlet velocity", value: "20, 0, 0", unit: "m/s" },
-      { label: "Turbulence intensity", value: "5", unit: "%" },
-      { label: "Turbulence length scale", value: "0.01", unit: "m" },
-    ],
-  },
-  run: {
-    label: "Run",
-    backend: "solver",
-    icon: "run",
-    title: "Run the CFD case",
-    description:
-      "Create a local solver revision from the accepted mesh and setup. HX CFD reports the real solver outcome, never artificial progress.",
-    action: "Run local solver",
-    fields: [
-      {
-        label: "Run type",
-        value: "Steady flow",
-        options: ["Steady flow", "Transient flow"],
-      },
-    ],
-    advanced: [
-      { label: "Maximum iterations", value: "5000" },
-      { label: "Residual target", value: "1e-05" },
-    ],
-  },
-  results: {
-    label: "Results",
-    backend: "results",
-    icon: "results",
-    title: "Review aerodynamic evidence",
-    description:
-      "Publish a result view from the completed solver artifacts. Field displays appear only when the real dataset is available.",
-    action: "Generate result view",
-    fields: [],
-  },
-  improve: {
-    label: "Improve + report",
-    backend: "reports",
-    icon: "improve",
-    title: "Turn evidence into a decision",
-    description:
-      "Generate a project report or run an optimization study against a project-owned evaluation function.",
-    action: "Generate report",
-    fields: [
-      {
-        label: "Template",
-        value: "Engineering review",
-        options: ["Engineering review", "Performance summary"],
-      },
-    ],
-    advanced: [
-      {
-        label: "Evaluator module",
-        value: "",
-        placeholder: "Project optimization evaluator path",
-      },
-      { label: "Design variable", value: "scale" },
-      { label: "Budget", value: "20" },
-      {
-        label: "Training module",
-        value: "",
-        placeholder: "Project PhysicsNeMo trainer path",
-      },
-      {
-        label: "Dataset path",
-        value: "",
-        placeholder: "Labelled local surrogate dataset",
-      },
-    ],
-  },
-};
-
-const orderedSteps = Object.keys(steps) as TunnelStep[];
-const defaultValues = (step: TunnelStep) =>
-  Object.fromEntries(
-    [...steps[step].fields, ...(steps[step].advanced ?? [])].map((field) => [
-      field.label,
-      field.value,
-    ]),
-  );
-const activeProjectDefault = "aero-turbine-study";
-
-function shortError(error: unknown) {
-  const detail = error instanceof Error ? error.message : String(error);
-  if (/unavailable|not available/i.test(detail))
-    return "A required local engineering tool is not ready on this workstation.";
-  if (/blocked|configured|must be configured/i.test(detail))
-    return "This action needs evidence from an earlier tunnel stage.";
-  if (/source|cad file|geometry/i.test(detail))
-    return "Select a valid local CAD file before preparing the geometry.";
-  return "The engineering action did not complete. Review the technical details before retrying.";
-}
-
-function stageState(snapshot: WorkflowSnapshot | null, backend: string) {
-  const job = snapshot?.jobs.find((job) => job.stage === backend) as
-    | Record<string, unknown>
-    | undefined;
-  if (job?.state === "FAILED") return "attention";
-  if (snapshot?.latest_outputs?.[backend]) return "complete";
-  if (
-    snapshot?.stages.find((stage) => stage.id === backend)?.status ===
-    "configured"
-  )
-    return "ready";
-  return "waiting";
-}
-
-function statusStyle(status: string) {
-  if (status === "complete") return "border-lab-green/40 text-lab-green";
-  if (status === "attention") return "border-lab-red/40 text-lab-red";
-  if (status === "ready") return "border-lab-blue/40 text-[#9ec2ff]";
-  return "border-lab-line text-lab-dim";
-}
-
-function artifactIdFrom(value: unknown): string | undefined {
-  if (!value || typeof value !== "object") return undefined;
-  const artifactId = (value as { artifact_id?: unknown }).artifact_id;
-  return typeof artifactId === "string" ? artifactId : undefined;
-}
-
-function Panel({
-  title,
-  children,
-  className = "",
-  action,
-}: {
-  title: string;
-  children: ReactNode;
+const IconButton = ({ icon, label, onClick, disabled, className = "" }: { 
+  icon: string; 
+  label: string; 
+  onClick?: () => void; 
+  disabled?: boolean;
   className?: string;
-  action?: ReactNode;
-}) {
-  return (
-    <section
-      className={`flex min-h-0 flex-col overflow-hidden rounded-[4px] border border-lab-line bg-lab-surface shadow-panel ${className}`}
-    >
-      <header className="flex h-9 shrink-0 items-center justify-between border-b border-lab-line px-3">
-        <span className="text-[10px] font-medium uppercase tracking-[.09em] text-lab-muted">
-          {title}
-        </span>
-        {action}
-      </header>
-      <div className="min-h-0 flex-1">{children}</div>
-    </section>
-  );
-}
+}) => (
+  <button 
+    className={`icon-button ${className}`} 
+    aria-label={label} 
+    title={label} 
+    onClick={onClick}
+    disabled={disabled}
+  >
+    <Icon name={icon} />
+  </button>
+);
 
-function FieldControl({
-  field,
-  value,
-  onChange,
-}: {
-  field: Field;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="grid gap-1.5 text-[11px] text-lab-muted">
-      <span>{field.label}</span>
-      {field.options ? (
-        <select
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className="h-8 rounded-[3px] border border-lab-line bg-lab-raised px-2 text-[11px] text-lab-ink outline-none transition-colors duration-100 ease-instrument hover:border-lab-strongLine"
-        >
-          {field.options.map((option) => (
-            <option key={option}>{option}</option>
-          ))}
-        </select>
-      ) : (
-        <div className="flex h-8 items-center rounded-[3px] border border-lab-line bg-lab-raised transition-colors duration-100 ease-instrument hover:border-lab-strongLine">
-          <input
-            value={value}
-            placeholder={field.placeholder}
-            onChange={(event) => onChange(event.target.value)}
-            className="min-w-0 flex-1 bg-transparent px-2 text-[11px] text-lab-ink outline-none placeholder:text-lab-dim"
-          />
-          {field.unit && (
-            <span className="pr-2 font-data text-[10px] text-lab-dim">
-              {field.unit}
-            </span>
-          )}
-        </div>
-      )}
-    </label>
-  );
-}
-
-function WindOrbButton({
-  id,
-  label,
-  icon,
-  activeToggle,
-  onToggle,
-}: {
-  id: WindToggle;
-  label: string;
-  icon: IconName;
-  activeToggle: WindToggle | null;
-  onToggle: (id: WindToggle) => void;
-}) {
-  const active = activeToggle === id;
-  return (
-    <button
-      type="button"
-      onClick={() => onToggle(id)}
-      aria-expanded={active}
-      aria-controls={`wind-panel-${id}`}
-      className={`group grid w-[86px] justify-items-center gap-3 text-[12px] uppercase tracking-[.03em] transition duration-300 ease-out ${
-        active ? "text-white" : "text-[#b6b6b7] hover:text-white"
-      }`}
-    >
-      <span
-        className={`grid h-[72px] w-[72px] place-items-center rounded-full border bg-black/35 shadow-[inset_0_0_24px_rgba(255,255,255,.035)] backdrop-blur-sm transition duration-300 ease-out group-hover:-translate-y-0.5 group-hover:border-white/45 group-hover:shadow-[0_0_34px_rgba(255,255,255,.16),inset_0_0_28px_rgba(255,255,255,.06)] ${
-          active
-            ? "border-white/70 shadow-[0_0_42px_rgba(255,255,255,.25),inset_0_0_28px_rgba(255,255,255,.08)]"
-            : "border-white/18"
-        }`}
-      >
-        <Icon name={icon} size={30} />
-      </span>
-      <span className="drop-shadow-[0_0_8px_rgba(255,255,255,.22)]">
-        {label}
-      </span>
-    </button>
-  );
-}
-
-function WindVehicleScene({ previewSource }: { previewSource?: string }) {
-  if (previewSource) {
-    return (
-      <div className="absolute inset-x-[10%] top-[28%] h-[48%] overflow-hidden">
-        <Viewport3D previewPath={previewSource} />
-      </div>
-    );
-  }
-
-  return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      <div className="wind-streams" aria-hidden="true">
-        {Array.from({ length: 19 }, (_, index) => (
-          <span
-            key={index}
-            style={{
-              top: `${18 + index * 2.9}%`,
-              width: `${96 - Math.abs(index - 8) * 1.7}%`,
-              opacity: 0.15 + index * 0.019,
-              transform: `translateX(${index % 2 ? -4 : 1}%)`,
-            }}
-          />
-        ))}
-      </div>
-      <div className="wind-car" aria-hidden="true">
-        <span className="car-body" />
-        <span className="car-canopy" />
-        <span className="car-highlight" />
-        <span className="car-tail" />
-        <span className="car-wake" />
-      </div>
-      <div className="wind-reflection" aria-hidden="true" />
-    </div>
-  );
-}
-
-function WindMetricStrip() {
-  const metrics = [
-    ["DRAG COEFFICIENT", "0.0124"],
-    ["LIFT COEFFICIENT", "0.0021"],
-    ["SIDE FORCE COEFFICIENT", "0.0000"],
-    ["PRESSURE RATIO", "2.85"],
-    ["HEAT FLUX", "18.7 kW/m²"],
-    ["CPU USAGE", "78 %"],
-  ];
-  return (
-    <div className="absolute bottom-[6.2%] left-1/2 grid w-[min(980px,66vw)] -translate-x-1/2 grid-cols-6 rounded-[18px] border border-white/28 bg-black/28 px-8 py-5 shadow-[0_0_30px_rgba(255,255,255,.08),inset_0_0_28px_rgba(255,255,255,.035)] backdrop-blur-sm">
-      {metrics.map(([label, value]) => (
-        <div key={label} className="text-center">
-          <span className="block text-[10px] uppercase text-white/56">
-            {label}
-          </span>
-          <b className="mt-3 block font-data text-[24px] font-normal tracking-[-.06em] text-white/78">
-            {value}
-          </b>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function WindPanel({
-  id,
-  title,
-  children,
-  align = "left",
-}: {
-  id: WindToggle;
-  title: string;
-  children: ReactNode;
-  align?: "left" | "right" | "center";
-}) {
-  const position =
-    align === "right"
-      ? "right-[3.2%] top-[145px]"
-      : align === "center"
-        ? "left-1/2 top-[168px] -translate-x-1/2"
-        : "left-[3.2%] top-[145px]";
-  return (
-    <section
-      id={`wind-panel-${id}`}
-      className={`wind-toggle-panel absolute z-30 w-[min(420px,31vw)] rounded-[18px] border border-white/22 bg-black/68 p-5 text-white shadow-[0_22px_70px_rgba(0,0,0,.7),inset_0_0_38px_rgba(255,255,255,.04)] backdrop-blur-md ${position}`}
-      onClick={(event) => event.stopPropagation()}
-    >
-      <span className="block text-[10px] uppercase tracking-[.14em] text-white/48">
-        {title}
-      </span>
-      <div className="mt-4">{children}</div>
-    </section>
-  );
-}
-
-function Maverick({
-  open,
-  onClose,
-  step,
-  execution,
-  engines,
-}: {
-  open: boolean;
-  onClose: () => void;
-  step: TunnelStep;
-  execution?: WorkflowExecution;
-  engines: EngineCapability[];
-}) {
-  if (!open) return null;
-  const ready = engines.filter(
-    (engine) => engine.status === "ready" || engine.status === "bundled",
-  ).length;
-  return (
-    <aside className="flex min-h-0 w-[288px] flex-col overflow-hidden rounded-[4px] border border-lab-line bg-lab-surface shadow-panel">
-      <header className="flex h-10 items-center gap-2 border-b border-lab-line px-3">
-        <MaverickMark className="h-5 w-8 text-lab-ink" />
-        <div className="min-w-0 flex-1">
-          <span className="block text-[11px] font-medium text-lab-ink">
-            Maverick
-          </span>
-          <span className="block text-[9px] uppercase tracking-[.09em] text-lab-dim">
-            Engineering companion
-          </span>
-        </div>
-        <button
-          onClick={onClose}
-          className="grid h-6 w-6 place-items-center rounded-[3px] text-lab-muted transition-colors hover:bg-lab-hover hover:text-lab-ink"
-          aria-label="Close Maverick"
-        >
-          <Icon name="close" size={15} />
-        </button>
-      </header>
-      <div className="min-h-0 flex-1 overflow-auto p-3">
-        <div className="rounded-[3px] border border-lab-line bg-[#0a0c0e] p-3">
-          <div className="mb-2 flex items-center gap-2 text-lab-ink">
-            <MaverickMark className="h-5 w-7" />
-            <span className="text-[11px] font-medium">
-              Current tunnel context
-            </span>
-          </div>
-          <p className="text-[11px] leading-5 text-lab-muted">
-            Maverick has not generated engineering advice. Connect a local or
-            remote AI provider in Profile to analyze project evidence.
-          </p>
-        </div>
-        <div className="mt-3 border-t border-lab-line pt-3">
-          <span className="text-[9px] uppercase tracking-[.09em] text-lab-dim">
-            Workflow evidence
-          </span>
-          <dl className="mt-2 grid gap-2 text-[11px]">
-            <div className="flex justify-between gap-3">
-              <dt className="text-lab-muted">Active stage</dt>
-              <dd className="font-data text-lab-ink">{steps[step].label}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-lab-muted">Local engines</dt>
-              <dd className="font-data text-lab-ink">
-                {ready} / {engines.length}
-              </dd>
-            </div>
-            {execution && (
-              <div className="flex justify-between gap-3">
-                <dt className="text-lab-muted">Last job</dt>
-                <dd className="font-data text-lab-green">saved</dd>
-              </div>
-            )}
-          </dl>
-        </div>
-      </div>
-      <div className="border-t border-lab-line p-3">
-        <div className="flex h-9 items-center gap-2 rounded-[3px] border border-lab-line bg-[#090b0d] px-2 text-[10px] text-lab-dim">
-          <Icon name="spark" size={15} />
-          <span>Provider not configured</span>
-        </div>
-      </div>
-    </aside>
-  );
-}
-
-function WindTunnel({
-  projectId,
-  snapshot,
-  engines,
-  onSnapshot,
-}: {
-  projectId: string;
-  snapshot: WorkflowSnapshot | null;
-  engines: EngineCapability[];
-  onSnapshot: (value: WorkflowSnapshot) => void;
-}) {
-  const [step, setStep] = useState<TunnelStep>("import");
-  const [values, setValues] = useState<Record<string, string>>(() =>
-    defaultValues("import"),
-  );
-  const [advanced, setAdvanced] = useState(false);
-  const [running, setRunning] = useState(false);
-  const [detail, setDetail] = useState("");
-  const [execution, setExecution] = useState<WorkflowExecution>();
-  const [activeToggle, setActiveToggle] = useState<WindToggle | null>(null);
-  const definition = steps[step];
-  const persistedFields = useMemo<Record<string, string>>(() => {
-    const configuration = snapshot?.stages.find(
-      (stage) => stage.id === definition.backend,
-    )?.configuration;
-    const fields = configuration?.fields;
-    if (!fields || typeof fields !== "object" || Array.isArray(fields)) return {};
-    return Object.fromEntries(
-      Object.entries(fields).flatMap(([key, value]) =>
-        typeof value === "string" || typeof value === "number"
-          ? [[key, String(value)]]
-          : [],
-      ),
-    );
-  }, [definition.backend, snapshot]);
-  const persistedFieldsKey = JSON.stringify(persistedFields);
-
-  useEffect(() => {
-    setValues({ ...defaultValues(step), ...persistedFields });
-    setAdvanced(false);
-    setDetail("");
-    setExecution(undefined);
-  }, [step, projectId, persistedFieldsKey]);
-  const workflowStatus = stageState(snapshot, definition.backend);
-  const stageOutput =
-    execution?.output ?? snapshot?.latest_outputs?.[definition.backend];
-  const preview =
-    step === "results"
-      ? (stageOutput?.results as Record<string, unknown> | undefined)
-      : step === "mesh"
-        ? (stageOutput?.mesh as Record<string, unknown> | undefined)
-        : undefined;
-  const previewArtifactId = artifactIdFrom(preview?.preview_artifact);
-  const [previewSource, setPreviewSource] = useState<string>();
-  const [artifactContent, setArtifactContent] =
-    useState<WorkflowArtifactContent>();
-  const [artifactNotice, setArtifactNotice] = useState("");
-  const [artifactBusy, setArtifactBusy] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    setPreviewSource(undefined);
-    if (!previewArtifactId) return () => {
-      cancelled = true;
-    };
-    void readWorkflowArtifact(previewArtifactId, projectId)
-      .then((artifact) => {
-        if (cancelled || artifact.encoding !== "base64") return;
-        setPreviewSource(
-          `data:${artifact.artifact.mime_type};base64,${artifact.content}`,
-        );
-      })
-      .catch(() => {
-        if (!cancelled) setPreviewSource(undefined);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [previewArtifactId, projectId]);
-
-  useEffect(() => {
-    setArtifactContent(undefined);
-    setArtifactNotice("");
-  }, [projectId, definition.backend]);
-
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setActiveToggle(null);
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, []);
-
-  const toggleMenu = (id: WindToggle) => {
-    setActiveToggle((current) => (current === id ? null : id));
-    if (id === "geometry") setStep("import");
-    if (id === "mesh") setStep("mesh");
-    if (id === "simulation" && !["setup", "run"].includes(step)) setStep("setup");
-  };
-
-  const viewArtifact = async (artifact: WorkflowArtifact) => {
-    setArtifactBusy(artifact.artifact_id);
-    setArtifactNotice("");
-    try {
-      setArtifactContent(await readWorkflowArtifact(artifact.artifact_id, projectId));
-    } catch (error) {
-      setDetail(error instanceof Error ? error.message : String(error));
-    } finally {
-      setArtifactBusy("");
-    }
-  };
-
-  const exportArtifact = async (artifact: WorkflowArtifact) => {
-    setArtifactBusy(artifact.artifact_id);
-    setArtifactNotice("");
-    try {
-      const destination = await save({ defaultPath: artifact.name });
-      if (!destination) return;
-      const exported = await exportWorkflowArtifact(
-        artifact.artifact_id,
-        destination,
-        projectId,
-      );
-      setArtifactNotice(`${exported.name} exported from this project.`);
-    } catch (error) {
-      setDetail(error instanceof Error ? error.message : String(error));
-    } finally {
-      setArtifactBusy("");
-    }
-  };
-
-  const chooseSource = async () => {
-    try {
-      const selected = await open({
-        multiple: false,
-        directory: false,
-        filters: [
-          {
-            name: "CAD models",
-            extensions: ["step", "stp", "iges", "igs", "brep"],
-          },
-        ],
-      });
-      if (typeof selected === "string")
-        setValues((current) => ({ ...current, Source: selected }));
-    } catch (error) {
-      setDetail(error instanceof Error ? error.message : String(error));
-    }
-  };
-
-  const execute = async (overrideBackend?: string) => {
-    const backend = overrideBackend ?? definition.backend;
-    setRunning(true);
-    setDetail("");
-    const fields = { ...values };
-    if (step === "mesh") {
-      const intent = fields["Mesh quality"];
-      Object.assign(
-        fields,
-        intent === "Fast"
-          ? {
-              "Base size": "2.40",
-              "Boundary layers": "6",
-              "Growth rate": "1.22",
-            }
-          : intent === "Fine"
-            ? {
-                "Base size": "0.60",
-                "Boundary layers": "18",
-                "Growth rate": "1.12",
-              }
-            : {},
-      );
-    }
-    if (step === "run")
-      fields["Solver type"] =
-        fields["Run type"] === "Transient flow"
-          ? "Transient RANS"
-          : "Steady RANS";
-    try {
-      const updated = await configureWorkflowStage(
-        backend,
-        { fields, source: "hx-cfd-desktop-wind-tunnel" },
-        projectId,
-      );
-      onSnapshot(updated);
-      const result = await executeWorkflowStage(backend, undefined, projectId);
-      setExecution(result);
-      const fresh = await getWorkflowSnapshot(projectId);
-      onSnapshot(fresh);
-    } catch (error) {
-      setDetail(error instanceof Error ? error.message : String(error));
-    } finally {
-      setRunning(false);
-    }
-  };
-
-  const renderWorkflowPanel = (title: string, stepsToShow: TunnelStep[]) => (
-    <WindPanel
-      id={activeToggle ?? "geometry"}
-      title={title}
-      align={activeToggle === "simulation" ? "center" : "left"}
-    >
-      <div className="mb-4 flex gap-2">
-        {stepsToShow.map((item) => (
-          <button
-            key={item}
-            onClick={() => setStep(item)}
-            className={`rounded-full border px-3 py-1.5 text-[10px] uppercase tracking-[.08em] transition ${
-              step === item
-                ? "border-white/70 bg-white/12 text-white"
-                : "border-white/16 text-white/52 hover:border-white/38 hover:text-white"
-            }`}
-          >
-            {steps[item].label}
-          </button>
-        ))}
-      </div>
-      <div className="rounded-[12px] border border-white/12 bg-white/[.035] p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-[18px] font-medium tracking-[-.02em] text-white">
-              {definition.title}
-            </h2>
-            <p className="mt-2 text-[11px] leading-5 text-white/58">
-              {definition.description}
-            </p>
-          </div>
-          <span
-            className={`shrink-0 rounded-full border px-2 py-1 text-[9px] uppercase ${statusStyle(workflowStatus)}`}
-          >
-            {workflowStatus}
-          </span>
-        </div>
-        <div className="mt-4 grid gap-3">
-          {definition.fields.map((field) =>
-            field.label === "Source" ? (
-              <label key={field.label} className="grid gap-1.5 text-[11px] text-white/58">
-                <span>CAD source</span>
-                <button
-                  onClick={() => void chooseSource()}
-                  className="flex h-9 items-center justify-between rounded-[8px] border border-white/18 bg-black/35 px-3 text-left text-[11px] text-white/74 hover:border-white/45"
-                >
-                  <span className="truncate">
-                    {values.Source || "Choose local CAD file"}
-                  </span>
-                  <Icon name="folder" size={14} />
-                </button>
-              </label>
-            ) : (
-              <FieldControl
-                key={field.label}
-                field={field}
-                value={values[field.label] ?? ""}
-                onChange={(value) =>
-                  setValues((current) => ({ ...current, [field.label]: value }))
-                }
-              />
-            ),
-          )}
-          <button
-            onClick={() => setAdvanced((value) => !value)}
-            className="justify-self-start text-[10px] uppercase tracking-[.08em] text-white/50 hover:text-white"
-          >
-            {advanced ? "Hide advanced" : "Advanced"}
-          </button>
-          {advanced && (
-            <div className="grid gap-3 border-t border-white/12 pt-3">
-              {(definition.advanced ?? []).map((field) => (
-                <FieldControl
-                  key={field.label}
-                  field={field}
-                  value={values[field.label] ?? ""}
-                  onChange={(value) =>
-                    setValues((current) => ({ ...current, [field.label]: value }))
-                  }
-                />
-              ))}
-            </div>
-          )}
-          <button
-            onClick={() => void execute()}
-            disabled={running}
-            className="mt-1 flex h-10 items-center justify-center gap-2 rounded-full border border-white/30 bg-white/12 px-4 text-[11px] uppercase tracking-[.08em] text-white transition hover:border-white/60 hover:bg-white/18 disabled:opacity-55"
-          >
-            <Icon name={running ? "gear" : "play"} size={14} />
-            {running ? "Working" : definition.action}
-          </button>
-          {detail && (
-            <details className="rounded-[8px] border border-red-300/25 bg-red-950/20 p-3 text-[10px] text-red-100/80">
-              <summary>{shortError(detail)}</summary>
-              <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap font-data text-[9px]">
-                {detail}
-              </pre>
-            </details>
-          )}
-          {stageOutput?.artifacts?.length ? (
-            <details className="text-[10px] text-white/56">
-              <summary className="cursor-pointer text-white/78">
-                {stageOutput.artifacts.length} artifact(s) saved
-              </summary>
-              <div className="mt-2 grid gap-1.5">
-                {stageOutput.artifacts.map((artifact) => (
-                  <div
-                    key={artifact.artifact_id}
-                    className="flex items-center gap-2 rounded-[8px] border border-white/12 bg-black/26 px-2 py-1.5"
-                  >
-                    <span className="min-w-0 flex-1 truncate font-data text-[9px]">
-                      {artifact.name}
-                    </span>
-                    {artifact.readable && (
-                      <button
-                        onClick={() => void viewArtifact(artifact)}
-                        disabled={artifactBusy === artifact.artifact_id}
-                        className="text-white/70 hover:text-white"
-                      >
-                        View
-                      </button>
-                    )}
-                    <button
-                      onClick={() => void exportArtifact(artifact)}
-                      disabled={artifactBusy === artifact.artifact_id}
-                      className="text-white/46 hover:text-white"
-                    >
-                      Export
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </details>
-          ) : null}
-          {artifactNotice && (
-            <p className="text-[10px] text-emerald-200/80">{artifactNotice}</p>
-          )}
-          {artifactContent && (
-            <details open className="rounded-[8px] border border-white/12 bg-black/24 p-3 text-[10px] text-white/58">
-              <summary className="cursor-pointer text-white/78">
-                {artifactContent.artifact.name}
-              </summary>
-              <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap font-data text-[9px]">
-                {artifactContent.encoding === "utf-8"
-                  ? artifactContent.content
-                  : "Binary evidence is loaded in the tunnel viewport when previewable."}
-              </pre>
-            </details>
-          )}
-        </div>
-      </div>
-    </WindPanel>
-  );
-
-  return (
-    <section
-      className="wind-shell relative h-[100dvh] overflow-hidden bg-black text-white"
-      onClick={() => setActiveToggle(null)}
-    >
-      <WindVehicleScene previewSource={previewSource} />
-      <header className="wind-header absolute inset-x-0 top-0 z-20 grid grid-cols-[1fr_auto_1fr] items-start px-[2.6%] pt-10">
-        <nav className="wind-nav flex gap-8" onClick={(event) => event.stopPropagation()}>
-          <WindOrbButton id="geometry" label="Geometry" icon="projects" activeToggle={activeToggle} onToggle={toggleMenu} />
-          <WindOrbButton id="mesh" label="Mesh" icon="mesh" activeToggle={activeToggle} onToggle={toggleMenu} />
-          <WindOrbButton id="simulation" label="Simulation" icon="wind" activeToggle={activeToggle} onToggle={toggleMenu} />
-        </nav>
-        <div className="pt-1 text-center">
-          <div className="wind-hx-logo text-[92px] font-semibold leading-none tracking-[-.16em] text-white">
-            HX
-          </div>
-        </div>
-        <nav className="wind-nav flex justify-end gap-8" onClick={(event) => event.stopPropagation()}>
-          <WindOrbButton id="search" label="Search" icon="search" activeToggle={activeToggle} onToggle={toggleMenu} />
-          <WindOrbButton id="settings" label="Settings" icon="gear" activeToggle={activeToggle} onToggle={toggleMenu} />
-          <WindOrbButton id="profile" label="Profile" icon="profile" activeToggle={activeToggle} onToggle={toggleMenu} />
-        </nav>
-      </header>
-
-      <div className="wind-divider absolute inset-x-0 top-[238px] z-10 h-px bg-white/10 shadow-[0_18px_0_rgba(255,255,255,.08),0_38px_0_rgba(255,255,255,.07),0_60px_0_rgba(255,255,255,.06)]" />
-
-      <aside className="wind-status-card absolute bottom-[6.2%] left-[2.6%] z-20 w-[166px] rounded-[12px] border border-white/28 bg-black/28 px-5 py-5 shadow-[inset_0_0_26px_rgba(255,255,255,.035)] backdrop-blur-sm">
-        <dl className="grid gap-4">
-          <div>
-            <dt className="text-[10px] uppercase text-white/48">Mach</dt>
-            <dd className="font-data text-[27px] font-normal text-white/76">2.34</dd>
-          </div>
-          <div>
-            <dt className="text-[10px] uppercase text-white/48">AOA</dt>
-            <dd className="font-data text-[24px] font-normal text-white/72">0.00 °</dd>
-          </div>
-          <div>
-            <dt className="text-[10px] uppercase text-white/48">Re</dt>
-            <dd className="font-data text-[20px] font-normal text-white/72">
-              8.14×10⁶
-              <span className="text-[13px]"> 1/m</span>
-            </dd>
-          </div>
-          <div>
-            <dt className="text-[10px] uppercase text-white/48">Status</dt>
-            <dd className="text-[20px] uppercase tracking-[.02em] text-white/78">
-              {running ? "Running" : "Ready"}
-            </dd>
-          </div>
-        </dl>
-      </aside>
-
-      <WindMetricStrip />
-
-      <button
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          toggleMenu("copilot");
-        }}
-        className={`wind-copilot-orb absolute bottom-[6.2%] right-[3.9%] z-20 grid justify-items-center gap-3 text-[14px] uppercase text-white/68 transition hover:text-white ${
-          activeToggle === "copilot" ? "text-white" : ""
-        }`}
-        aria-expanded={activeToggle === "copilot"}
-      >
-        <span className="grid h-[92px] w-[92px] place-items-center rounded-full border border-white/42 bg-white/[.035] shadow-[0_0_30px_rgba(255,255,255,.16),inset_0_0_28px_rgba(255,255,255,.08)]">
-          <MaverickMark className="h-12 w-16" />
-        </span>
-        <span>Copilot</span>
-      </button>
-
-      {activeToggle === "geometry" &&
-        renderWorkflowPanel("Geometry", ["import"])}
-      {activeToggle === "mesh" && renderWorkflowPanel("Mesh", ["mesh"])}
-      {activeToggle === "simulation" &&
-        renderWorkflowPanel("Simulation", ["setup", "run", "results"])}
-      {activeToggle === "search" && (
-        <WindPanel id="search" title="Search" align="right">
-          <input
-            autoFocus
-            placeholder="Search / Command Palette"
-            className="h-11 w-full rounded-full border border-white/18 bg-black/40 px-4 text-[13px] text-white outline-none placeholder:text-white/36"
-          />
-          <div className="mt-4 grid gap-2">
-            {orderedSteps.map((item) => (
-              <button
-                key={item}
-                onClick={() => {
-                  setStep(item);
-                  setActiveToggle(null);
-                }}
-                className="flex h-9 items-center gap-3 rounded-full px-3 text-left text-[11px] text-white/62 hover:bg-white/10 hover:text-white"
-              >
-                <Icon name={steps[item].icon} size={15} />
-                {steps[item].label}
-              </button>
-            ))}
-          </div>
-        </WindPanel>
-      )}
-      {activeToggle === "settings" && (
-        <WindPanel id="settings" title="Settings" align="right">
-          <div className="grid gap-2">
-            {engines.slice(0, 8).map((engine) => (
-              <div
-                key={engine.id}
-                className="flex items-center justify-between rounded-full border border-white/12 bg-white/[.03] px-3 py-2 text-[11px] text-white/62"
-              >
-                <span>{engine.display_name}</span>
-                <b className={engine.status === "ready" || engine.status === "bundled" ? "text-emerald-300" : "text-amber-200"}>
-                  {engine.status}
-                </b>
-              </div>
-            ))}
-            {!engines.length && (
-              <p className="text-[11px] leading-5 text-white/54">
-                Engine inventory appears here inside HX CFD desktop.
-              </p>
-            )}
-          </div>
-        </WindPanel>
-      )}
-      {activeToggle === "profile" && (
-        <WindPanel id="profile" title="Profile" align="right">
-          <div className="flex items-center gap-4">
-            <div className="grid h-16 w-16 place-items-center rounded-full border border-white/28 bg-white/10 text-[22px]">
-              M
-            </div>
-            <div>
-              <h2 className="text-[18px] text-white">Local Engineer</h2>
-              <p className="mt-1 text-[11px] text-white/54">{projectId}</p>
-            </div>
-          </div>
-          <p className="mt-5 text-[11px] leading-5 text-white/56">
-            HX CFD is running as a local-first workstation workflow. Project
-            data and generated evidence stay on this machine.
-          </p>
-        </WindPanel>
-      )}
-      {activeToggle === "copilot" && (
-        <WindPanel id="copilot" title="Maverick Copilot" align="right">
-          <Maverick
-            open
-            onClose={() => setActiveToggle(null)}
-            step={step}
-            execution={execution}
-            engines={engines}
-          />
-        </WindPanel>
-      )}
-    </section>
-  );
-}
-
-function Projects({
-  projectId,
-  projects,
-  onProjectOpen,
-  onProjectsChanged,
-}: {
-  projectId: string;
-  projects: LocalProject[];
-  onProjectOpen: (projectId: string, snapshot: WorkflowSnapshot) => void;
-  onProjectsChanged: () => Promise<void>;
-}) {
-  const [candidate, setCandidate] = useState("");
-  const [query, setQuery] = useState("");
-  const [selectedProjectId, setSelectedProjectId] = useState(projectId);
-  const [renameValue, setRenameValue] = useState("");
-  const [renaming, setRenaming] = useState(false);
-  const [busyAction, setBusyAction] = useState("");
-  const [actionError, setActionError] = useState("");
-
-  useEffect(() => {
-    setSelectedProjectId(projectId);
-    setRenaming(false);
-  }, [projectId]);
-
-  const normalize = (value: string) =>
-    value
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9._-]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-
-  const selected =
-    projects.find((project) => project.project_id === selectedProjectId) ??
-    projects.find((project) => project.project_id === projectId);
-  const visibleProjects = projects.filter(
-    (project) =>
-      !query || project.project_id.toLowerCase().includes(query.toLowerCase()),
-  );
-  const fail = (error: unknown) => {
-    const detail = error instanceof Error ? error.message : String(error);
-    setActionError(
-      /reading ['"]invoke|__TAURI|tauri/i.test(detail)
-        ? "This action is available only inside HX CFD desktop. Browser previews do not create or change local projects."
-        : detail,
-    );
-  };
-
-  const openProject = async (id: string) => {
-    setBusyAction(`open:${id}`);
-    setActionError("");
-    try {
-      const nextSnapshot = await openLocalProject(id);
-      onProjectOpen(id, nextSnapshot);
-      await onProjectsChanged();
-    } catch (error) {
-      fail(error);
-    } finally {
-      setBusyAction("");
-    }
-  };
-
-  const createProject = async () => {
-    const normalized = normalize(candidate);
-    if (!normalized) return;
-    setBusyAction("create");
-    setActionError("");
-    try {
-      const created = await createLocalProject(normalized);
-      setCandidate("");
-      const nextSnapshot = await openLocalProject(created.project_id);
-      onProjectOpen(created.project_id, nextSnapshot);
-      await onProjectsChanged();
-    } catch (error) {
-      fail(error);
-    } finally {
-      setBusyAction("");
-    }
-  };
-
-  const saveRename = async () => {
-    if (!selected) return;
-    const normalized = normalize(renameValue);
-    if (!normalized || normalized === selected.project_id) {
-      setRenaming(false);
-      return;
-    }
-    setBusyAction(`rename:${selected.project_id}`);
-    setActionError("");
-    try {
-      const renamed = await renameLocalProject(selected.project_id, normalized);
-      setRenaming(false);
-      setSelectedProjectId(renamed.project_id);
-      await onProjectsChanged();
-      if (selected.project_id === projectId) {
-        const nextSnapshot = await openLocalProject(renamed.project_id);
-        onProjectOpen(renamed.project_id, nextSnapshot);
-      }
-    } catch (error) {
-      fail(error);
-    } finally {
-      setBusyAction("");
-    }
-  };
-
-  const archiveProject = async () => {
-    if (!selected) return;
-    if (selected.project_id === projectId) {
-      setActionError(
-        "Open a different project before archiving the active one.",
-      );
-      return;
-    }
-    setBusyAction(`archive:${selected.project_id}`);
-    setActionError("");
-    try {
-      await archiveLocalProject(selected.project_id);
-      setSelectedProjectId(projectId);
-      await onProjectsChanged();
-    } catch (error) {
-      fail(error);
-    } finally {
-      setBusyAction("");
-    }
-  };
-
-  const removeProject = async () => {
-    if (!selected) return;
-    if (selected.project_id === projectId) {
-      setActionError(
-        "Open a different project before deleting the active one.",
-      );
-      return;
-    }
-    if (
-      !window.confirm(
-        `Permanently delete local project “${selected.project_id}” and all of its artifacts?`,
-      )
-    )
-      return;
-    setBusyAction(`delete:${selected.project_id}`);
-    setActionError("");
-    try {
-      await deleteLocalProject(selected.project_id);
-      setSelectedProjectId(projectId);
-      await onProjectsChanged();
-    } catch (error) {
-      fail(error);
-    } finally {
-      setBusyAction("");
-    }
-  };
-
-  return (
-    <section className="min-h-0 flex-1 overflow-auto bg-lab-canvas p-5">
-      <div className="mx-auto max-w-[1040px]">
-        <div className="flex items-end justify-between">
-          <div>
-            <span className="text-[10px] uppercase tracking-[.1em] text-lab-dim">
-              Local project storage
-            </span>
-            <h1 className="mt-1 text-[24px] font-medium tracking-[-.025em] text-lab-ink">
-              Projects
-            </h1>
-            <p className="mt-2 text-[12px] text-lab-muted">
-              Create or open the local engineering record that owns geometry,
-              mesh, solver, and report artifacts.
-            </p>
-          </div>
-        </div>
-        <div className="mt-6 grid grid-cols-[minmax(0,1fr)_320px] gap-3">
-          <Panel
-            title="Local projects"
-            action={
-              <span className="font-data text-[10px] text-lab-dim">
-                {projects.length} total
-              </span>
-            }
-          >
-            <div className="border-b border-lab-line p-3">
-              <div className="flex h-8 items-center gap-2 rounded-[3px] border border-lab-line bg-lab-raised px-2">
-                <Icon name="search" size={15} />
-                <input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search local projects"
-                  className="min-w-0 flex-1 bg-transparent text-[11px] text-lab-ink outline-none placeholder:text-lab-dim"
-                />
-              </div>
-            </div>
-            <div className="grid gap-2 p-3">
-              {visibleProjects.length ? (
-                visibleProjects.map((project) => {
-                  const isActive = project.project_id === projectId;
-                  const isSelected =
-                    project.project_id === selected?.project_id;
-                  return (
-                    <button
-                      key={project.project_id}
-                      onClick={() => {
-                        setSelectedProjectId(project.project_id);
-                        setRenaming(false);
-                        setActionError("");
-                      }}
-                      className={`flex w-full items-center gap-3 rounded-[3px] border p-3 text-left transition-colors ${isSelected ? "border-lab-blue/60 bg-[#101924]" : "border-lab-line bg-[#0a0c0e] hover:border-lab-strongLine hover:bg-lab-hover"}`}
-                    >
-                      <span
-                        className={`grid h-9 w-9 place-items-center rounded-[3px] border ${isSelected ? "border-lab-blue/60 bg-[#12315f] text-[#b7d0ff]" : "border-lab-line bg-lab-raised text-lab-muted"}`}
-                      >
-                        <Icon name="folder" size={18} />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <b className="block truncate text-[12px] font-medium text-lab-ink">
-                          {project.project_id}
-                        </b>
-                        <small className="mt-1 block truncate font-data text-[9px] text-lab-dim">
-                          Stored locally by HX CFD
-                        </small>
-                      </span>
-                      {isActive && (
-                        <span className="rounded-full border border-lab-green/30 px-2 py-1 text-[9px] text-lab-green">
-                          Active
-                        </span>
-                      )}
-                    </button>
-                  );
-                })
-              ) : (
-                <p className="py-8 text-center text-[11px] text-lab-muted">
-                  No local project matches this search.
-                </p>
-              )}
-            </div>
-          </Panel>
-          <Panel title="Project actions">
-            <div className="grid gap-3 p-3">
-              {selected ? (
-                <>
-                  <div className="rounded-[3px] border border-lab-line bg-[#0a0c0e] p-3">
-                    <span className="text-[9px] uppercase tracking-[.09em] text-lab-dim">
-                      Selected project
-                    </span>
-                    <b className="mt-1 block truncate text-[12px] font-medium text-lab-ink">
-                      {selected.project_id}
-                    </b>
-                    <span className="mt-1 block truncate font-data text-[9px] text-lab-dim">
-                      Stored locally by HX CFD
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => void openProject(selected.project_id)}
-                    disabled={busyAction.length > 0}
-                    className="flex h-8 items-center justify-center gap-2 rounded-[3px] border border-lab-blue bg-lab-blue text-[10px] font-medium text-white transition-colors hover:bg-lab-blueHover disabled:opacity-50"
-                  >
-                    <Icon name="tunnel" size={14} />
-                    {busyAction === `open:${selected.project_id}`
-                      ? "Opening…"
-                      : "Open in Wind Tunnel"}
-                  </button>
-                  {renaming ? (
-                    <div className="grid gap-2 border-t border-lab-line pt-3">
-                      <label className="grid gap-1.5 text-[11px] text-lab-muted">
-                        New project name
-                        <input
-                          value={renameValue}
-                          onChange={(event) =>
-                            setRenameValue(event.target.value)
-                          }
-                          className="h-8 rounded-[3px] border border-lab-line bg-lab-raised px-2 text-[11px] text-lab-ink outline-none"
-                        />
-                      </label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={() => void saveRename()}
-                          disabled={
-                            busyAction.length > 0 || !normalize(renameValue)
-                          }
-                          className="h-8 rounded-[3px] border border-lab-line bg-lab-raised text-[10px] text-lab-ink hover:border-lab-strongLine disabled:opacity-50"
-                        >
-                          Save name
-                        </button>
-                        <button
-                          onClick={() => setRenaming(false)}
-                          disabled={busyAction.length > 0}
-                          className="h-8 rounded-[3px] border border-lab-line text-[10px] text-lab-muted hover:bg-lab-hover disabled:opacity-50"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setRenameValue(selected.project_id);
-                        setRenaming(true);
-                      }}
-                      disabled={busyAction.length > 0}
-                      className="flex h-8 items-center justify-center gap-2 rounded-[3px] border border-lab-line bg-lab-raised text-[10px] text-lab-muted hover:border-lab-strongLine hover:bg-lab-hover hover:text-lab-ink disabled:opacity-50"
-                    >
-                      <Icon name="gear" size={14} />
-                      Rename project
-                    </button>
-                  )}
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => void archiveProject()}
-                      disabled={
-                        busyAction.length > 0 ||
-                        selected.project_id === projectId
-                      }
-                      title={
-                        selected.project_id === projectId
-                          ? "Open another project before archiving this one."
-                          : undefined
-                      }
-                      className="flex h-8 items-center justify-center gap-1.5 rounded-[3px] border border-lab-line text-[10px] text-lab-muted hover:border-lab-strongLine hover:bg-lab-hover disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <Icon name="archive" size={14} />
-                      Archive
-                    </button>
-                    <button
-                      onClick={() => void removeProject()}
-                      disabled={
-                        busyAction.length > 0 ||
-                        selected.project_id === projectId
-                      }
-                      title={
-                        selected.project_id === projectId
-                          ? "Open another project before deleting this one."
-                          : undefined
-                      }
-                      className="flex h-8 items-center justify-center gap-1.5 rounded-[3px] border border-lab-red/40 text-[10px] text-[#e99891] hover:bg-[#211212] disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <Icon name="trash" size={14} />
-                      Delete
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <p className="text-[11px] leading-5 text-lab-muted">
-                  Create a local project to start a durable engineering record.
-                </p>
-              )}
-              <div className="border-t border-lab-line pt-3">
-                <span className="text-[9px] uppercase tracking-[.09em] text-lab-dim">
-                  New local project
-                </span>
-              </div>
-              <label className="grid gap-1.5 text-[11px] text-lab-muted">
-                Project name
-                <input
-                  value={candidate}
-                  onChange={(event) => setCandidate(event.target.value)}
-                  placeholder="e.g. rear-wing-aero-study"
-                  className="h-8 rounded-[3px] border border-lab-line bg-lab-raised px-2 text-[11px] text-lab-ink outline-none placeholder:text-lab-dim"
-                />
-              </label>
-              <button
-                onClick={() => void createProject()}
-                disabled={!normalize(candidate) || busyAction.length > 0}
-                className="flex h-8 items-center justify-center gap-2 rounded-[3px] border border-lab-blue bg-lab-blue text-[10px] font-medium text-white transition-colors hover:bg-lab-blueHover disabled:opacity-50"
-              >
-                <Icon name="plus" size={14} />
-                {busyAction === "create" ? "Creating…" : "Create and open"}
-              </button>
-              {actionError && (
-                <div className="rounded-[3px] border border-lab-red/40 bg-[#201111] p-2 text-[10px] leading-4 text-[#e99891]">
-                  {actionError}
-                </div>
-              )}
-            </div>
-          </Panel>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Profile({
-  engines,
-  error,
-}: {
-  engines: EngineCapability[];
-  error: string;
-}) {
-  const ready = engines.filter(
-    (engine) => engine.status === "ready" || engine.status === "bundled",
-  ).length;
-  return (
-    <section className="min-h-0 flex-1 overflow-auto bg-lab-canvas p-5">
-      <div className="mx-auto max-w-[1040px]">
-        <span className="text-[10px] uppercase tracking-[.1em] text-lab-dim">
-          Desktop profile
-        </span>
-        <h1 className="mt-1 text-[24px] font-medium tracking-[-.025em] text-lab-ink">
-          Profile and local environment
-        </h1>
-        <p className="mt-2 text-[12px] text-lab-muted">
-          Control what runs on this workstation. Engineering engine names live
-          here, not in the Wind Tunnel navigation.
-        </p>
-        <div className="mt-6 grid grid-cols-[300px_minmax(0,1fr)] gap-3">
-          <Panel title="Workspace">
-            <dl className="grid gap-3 p-3 text-[11px]">
-              <div>
-                <dt className="text-lab-muted">AI providers</dt>
-                <dd className="mt-1 text-lab-ink">No provider configured</dd>
-                <p className="mt-1 text-[10px] leading-4 text-lab-dim">
-                  Maverick remains evidence-only until a provider is added.
-                </p>
-              </div>
-              <div className="border-t border-lab-line pt-3">
-                <dt className="text-lab-muted">Compute profile</dt>
-                <dd className="mt-1 flex items-center gap-2 text-lab-ink">
-                  <Icon name="cpu" size={15} />
-                  Local workstation
-                </dd>
-              </div>
-              <div className="border-t border-lab-line pt-3">
-                <dt className="text-lab-muted">Desktop theme</dt>
-                <dd className="mt-1 text-lab-ink">Titanium dark</dd>
-              </div>
-            </dl>
-          </Panel>
-          <Panel
-            title="Installed engineering engines"
-            action={
-              <span className="font-data text-[10px] text-lab-muted">
-                {ready} / {engines.length} ready
-              </span>
-            }
-          >
-            <div className="divide-y divide-lab-line">
-              {error ? (
-                <p className="p-3 text-[11px] text-lab-amber">{error}</p>
-              ) : (
-                engines.map((engine) => (
-                  <div
-                    key={engine.id}
-                    className="flex items-center gap-3 px-3 py-2.5"
-                  >
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${engine.status === "ready" || engine.status === "bundled" ? "bg-lab-green" : "bg-lab-amber"}`}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <b className="block text-[11px] font-medium text-lab-ink">
-                        {engine.display_name}
-                      </b>
-                      <small className="block truncate text-[9px] text-lab-dim">
-                        {engine.detail ?? engine.runtime}
-                      </small>
-                    </div>
-                    <span
-                      className={`rounded-full border px-2 py-1 text-[9px] ${engine.status === "ready" || engine.status === "bundled" ? "border-lab-green/30 text-lab-green" : "border-lab-amber/30 text-lab-amber"}`}
-                    >
-                      {engine.status === "unavailable"
-                        ? "Needs setup"
-                        : engine.status}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          </Panel>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Documentation() {
-  const [selectedDocument, setSelectedDocument] = useState<string | null>(
-    null,
-  );
-  const documents = [
-    {
-      title: "Getting started",
-      description:
-        "Import a CAD model, prepare geometry, generate a mesh, then run a local CFD case.",
-      guidance:
-        "Create or open a local project first. In Wind Tunnel, select a STEP, IGES, or BREP solid, then complete each stage in order. HX CFD records every accepted configuration and generated artifact in that project.",
-    },
-    {
-      title: "Tunnel workflow",
-      description:
-        "How HX CFD creates revisioned geometry, mesh, physics, solver, result, and report evidence.",
-      guidance:
-        "Geometry must be prepared before meshing; meshing must be configured before physics; meshing and physics must both be configured before a solver run. Results and reports use only artifacts published by their preceding stage.",
-    },
-    {
-      title: "Engineering concepts",
-      description:
-        "Mesh quality, boundary-layer decisions, convergence, and post-processing evidence.",
-      guidance:
-        "Use the mesh intent to set a sensible starting resolution, then inspect the published quality evidence before configuring physics. Solver and results stages only publish evidence that their local engines produced and validated.",
-    },
-    {
-      title: "Desktop operations",
-      description:
-        "Keyboard shortcuts, local-project storage, diagnostics, and offline operation.",
-      guidance:
-        "HX CFD starts its managed local backend when the desktop app launches and keeps project data on the workstation. Use Ctrl + K to move between workspaces; Profile reports local engine availability and diagnostics.",
-    },
-    {
-      title: "Open-source notices",
-      description:
-        "Third-party licenses, attributions, and engineering engine provenance.",
-      guidance:
-        "HX CFD orchestrates local engineering engines behind one workflow. Profile shows the locally detected engine inventory; an unavailable engine is never represented as a completed engineering action.",
-    },
-  ];
-  return (
-    <section className="min-h-0 flex-1 overflow-auto bg-lab-canvas p-5">
-      <div className="mx-auto max-w-[900px]">
-        <span className="text-[10px] uppercase tracking-[.1em] text-lab-dim">
-          HX CFD documentation
-        </span>
-        <h1 className="mt-1 text-[24px] font-medium tracking-[-.025em] text-lab-ink">
-          Use the tunnel with confidence
-        </h1>
-        <p className="mt-2 text-[12px] text-lab-muted">
-          Short operational guidance for a local-first engineering workspace.
-        </p>
-        <div className="mt-6 divide-y divide-lab-line rounded-[4px] border border-lab-line bg-lab-surface">
-          {documents.map(({ title, description, guidance }, index) => {
-            const isSelected = selectedDocument === title;
-            return (
-              <div key={title}>
-                <button
-                  onClick={() =>
-                    setSelectedDocument((current) =>
-                      current === title ? null : title,
-                    )
-                  }
-                  aria-expanded={isSelected}
-                  className={`flex w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-lab-hover ${isSelected ? "bg-lab-hover" : ""}`}
-                >
-                  <span className="grid h-7 w-7 place-items-center rounded-[3px] border border-lab-line font-data text-[10px] text-lab-muted">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <b className="block text-[12px] font-medium text-lab-ink">
-                      {title}
-                    </b>
-                    <small className="mt-1 block text-[11px] leading-5 text-lab-muted">
-                      {description}
-                    </small>
-                  </span>
-                  <Icon name="chevron" size={15} />
-                </button>
-                {isSelected && (
-                  <div className="border-t border-lab-line bg-[#0a0c0e] px-4 py-3 pl-[68px] text-[11px] leading-5 text-lab-muted">
-                    {guidance}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-export default function App() {
-  const [screen, setScreen] = useState<AppScreen>("wind-tunnel");
-  const [projectId, setProjectId] = useState(activeProjectDefault);
+function App() {
+  const [screen, setScreen] = useState<AppScreen>("workflow");
+  const [activeStage, setActiveStage] = useState<StageId>("geometry");
+  const [backendReady, setBackendReady] = useState<BackendReadiness>("checking");
   const [snapshot, setSnapshot] = useState<WorkflowSnapshot | null>(null);
   const [engines, setEngines] = useState<EngineCapability[]>([]);
   const [projects, setProjects] = useState<LocalProject[]>([]);
-  const [bridgeNotice, setBridgeNotice] = useState("");
-  const [backendReadiness, setBackendReadiness] =
-    useState<BackendReadiness>("checking");
-  const [commandOpen, setCommandOpen] = useState(false);
-  const [commandQuery, setCommandQuery] = useState("");
+  const [currentProject, setCurrentProject] = useState<string>("aero-turbine-study");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const [backendError, setBackendError] = useState<string | null>(null);
-
-  const refreshBackendHealth = async () => {
-    if (!("__TAURI_INTERNALS__" in window)) {
-      setBackendReadiness("offline");
-      setBackendError("Not running inside HX CFD desktop. Open the built .exe, not http://localhost:5173");
-      return;
-    }
-
-    try {
-      const status = await getBackendStatus();
-      const lifecycle =
-        typeof status.status === "string" ? status.status : "offline";
-      if (lifecycle === "stopped" || lifecycle === "offline") {
-        setBackendReadiness("starting");
-        await startBackend();
-      } else {
-        setBackendReadiness(lifecycle === "running" ? "checking" : "starting");
+  // Load backend status on mount
+  useEffect(() => {
+    const checkBackend = async () => {
+      try {
+        const status = await getBackendStatus();
+        setBackendReady(status === "running" ? "ready" : "offline");
+        if (status !== "running") {
+          await startBackend();
+          setBackendReady("starting");
+          // Poll until ready
+          const interval = setInterval(async () => {
+            const s = await getBackendStatus();
+            if (s === "running") {
+              setBackendReady("ready");
+              clearInterval(interval);
+              loadInitialData();
+            }
+          }, 1000);
+        } else {
+          loadInitialData();
+        }
+      } catch {
+        setBackendReady("offline");
       }
-
-      const healthy = await checkBackendHealth();
-      setBackendReadiness(healthy ? "ready" : "starting");
-      setBackendError(null);
-    } catch (error) {
-      setBackendReadiness("offline");
-      setBackendError(error instanceof Error ? error.message : String(error));
-    }
-  };
-
-  const refreshProjectList = async () => {
-    const localProjects = await listLocalProjects();
-    setProjects(localProjects);
-  };
-
-  const refresh = async (id = projectId) => {
-    try {
-      const [nextSnapshot, inventory, localProjects] = await Promise.all([
-        getWorkflowSnapshot(id),
-        getEngineInventory(),
-        listLocalProjects(),
-      ]);
-      setSnapshot(nextSnapshot);
-      setEngines(inventory);
-      setProjects(localProjects);
-      setBridgeNotice("");
-    } catch (error) {
-      setBridgeNotice(
-        "The engineering bridge is available only inside HX CFD desktop. This browser preview never fabricates a local workflow.",
-      );
-    }
-  };
-
-  useEffect(() => {
-    void refresh();
-  }, [projectId]);
-  useEffect(() => {
-    void refreshBackendHealth();
-    const interval = window.setInterval(
-      () => void refreshBackendHealth(),
-      5000,
-    );
-    return () => window.clearInterval(interval);
-  }, []);
-  useEffect(() => {
-    const handleShortcut = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setCommandOpen(true);
-      }
-      if (event.key === "Escape") setCommandOpen(false);
     };
-    window.addEventListener("keydown", handleShortcut);
-    return () => window.removeEventListener("keydown", handleShortcut);
+    checkBackend();
   }, []);
-  const activeLabel = useMemo(
-    () => nav.find((item) => item.id === screen)?.label ?? "HX CFD",
-    [screen],
-  );
-  const backendLabel =
-    backendReadiness === "ready"
-      ? "LOCAL READY"
-      : backendReadiness === "starting" || backendReadiness === "checking"
-        ? "LOCAL STARTING"
-        : "LOCAL OFFLINE";
-  const backendDot =
-    backendReadiness === "ready"
-      ? "bg-lab-green"
-      : backendReadiness === "offline"
-        ? "bg-lab-red"
-        : "bg-lab-amber";
-  const commandResults = nav.filter((item) =>
-    item.label.toLowerCase().includes(commandQuery.trim().toLowerCase()),
-  );
-  const projectOpened = (id: string, nextSnapshot: WorkflowSnapshot) => {
-    setProjectId(id);
-    setSnapshot(nextSnapshot);
-    setScreen("wind-tunnel");
+
+  const loadInitialData = async () => {
+    try {
+      setLoading(true);
+      const [snap, eng, projs] = await Promise.all([
+        getWorkflowSnapshot(currentProject, true),
+        getEngineInventory(),
+        listLocalProjects(false),
+      ]);
+      setSnapshot(snap);
+      setEngines(eng);
+      setProjects(projs);
+      
+      // If no project exists, create default
+      if (projs.length === 0) {
+        await createLocalProject(currentProject);
+        const newSnap = await getWorkflowSnapshot(currentProject, true);
+        setSnapshot(newSnap);
+        const newProjs = await listLocalProjects(false);
+        setProjects(newProjs);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (screen === "wind-tunnel") {
+  const refreshSnapshot = useCallback(async () => {
+    try {
+      const snap = await getWorkflowSnapshot(currentProject, true);
+      setSnapshot(snap);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, [currentProject]);
+
+  const handleConfigure = async (stageId: StageId, config: Record<string, string>) => {
+    await configureWorkflowStage(currentProject, stageId, { fields: config, source: 'hx-cfd-desktop' });
+  };
+
+  const handleExecute = async (stageId: StageId, config: Record<string, string>) => {
+    await executeWorkflowStage(stageId, config);
+  };
+
+  const handleProjectChange = async (projectId: string) => {
+    if (projectId === currentProject) return;
+    setCurrentProject(projectId);
+    await openLocalProject(projectId);
+    await refreshSnapshot();
+  };
+
+  const handleNewProject = async () => {
+    const name = prompt("Enter new project name:");
+    if (!name) return;
+    const projectId = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    try {
+      await createLocalProject(projectId);
+      const newProjs = await listLocalProjects(false);
+      setProjects(newProjs);
+      setCurrentProject(projectId);
+      await refreshSnapshot();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to create project");
+    }
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    if (!confirm(`Delete project "${projectId}"? This cannot be undone.`)) return;
+    try {
+      await deleteLocalProject(projectId);
+      const newProjs = await listLocalProjects(false);
+      setProjects(newProjs);
+      if (projectId === currentProject) {
+        const first = newProjs[0]?.project_id || "aero-turbine-study";
+        setCurrentProject(first);
+        await refreshSnapshot();
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete project");
+    }
+  };
+
+  const getStageStatus = (stageId: StageId): 'blocked' | 'required' | 'configured' | 'running' | 'succeeded' | 'failed' => {
+    if (!snapshot) return 'blocked';
+    
+    const stage = snapshot.stages.find(s => s.id === stageId);
+    if (!stage) return 'blocked';
+    
+    // Check job state
+    const job = snapshot.jobs.find(j => j.stage === stageId) as Record<string, unknown> | undefined;
+    if (job) {
+      const state = job.state as string;
+      if (state === 'RUNNING' || state === 'STAGING' || state === 'VALIDATING' || state === 'PUBLISHING') return 'running';
+      if (state === 'SUCCEEDED') return 'succeeded';
+      if (state === 'FAILED') return 'failed';
+    }
+    
+    // Check prerequisites
+    const stageIndex = stageNavigation.findIndex(n => n.id === stageId);
+    for (let i = 0; i < stageIndex; i++) {
+      const prereq = stageNavigation[i].id as StageId;
+      const prereqStage = snapshot.stages.find(s => s.id === prereq);
+      if (!prereqStage || prereqStage.status !== 'configured') {
+        return 'blocked';
+      }
+    }
+    
+    return stage.status === 'configured' ? 'configured' : 'required';
+  };
+
+  if (loading) {
     return (
-      <main className="h-[100dvh] min-w-0 overflow-hidden bg-black text-white">
-        {bridgeNotice && (
-          <div className="absolute left-1/2 top-4 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border border-amber-200/25 bg-black/75 px-4 py-2 text-[10px] text-amber-100/80 backdrop-blur">
-            <Icon name="warning" size={14} />
-            {bridgeNotice}
-          </div>
-        )}
-        <WindTunnel
-          projectId={projectId}
-          snapshot={snapshot}
-          engines={engines}
-          onSnapshot={setSnapshot}
-        />
-      </main>
+      <div className="app-loading">
+        <div className="loading-spinner" />
+        <p>Initializing HX CFD...</p>
+      </div>
     );
   }
 
   return (
-    <main className="relative flex h-[100dvh] min-h-0 min-w-[1024px] overflow-hidden bg-lab-black text-lab-ink">
-      <aside className="flex w-[132px] shrink-0 flex-col border-r border-lab-line bg-lab-rail">
-        <div className="flex h-[58px] items-center border-b border-lab-line px-4">
-          <span className="text-[28px] font-semibold tracking-[-.11em] text-lab-ink">
-            HX
-          </span>
-          <span className="ml-1 text-[11px] font-medium tracking-[-.04em] text-lab-ink">
-            CFD
-          </span>
-        </div>
-        <nav className="flex flex-1 flex-col gap-1 px-2 py-3">
-          {nav.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setScreen(item.id)}
-              className={`relative flex h-11 items-center gap-2 rounded-[3px] px-2 text-left text-[10px] transition-colors duration-100 ease-instrument ${screen === item.id ? "bg-[#141a22] text-lab-ink" : "text-lab-muted hover:bg-lab-hover hover:text-lab-ink"}`}
+    <div className="app">
+      {/* Top Bar */}
+      <header className="top-bar">
+        <div className="top-bar-left">
+          <IconButton icon="menu" label="Menu" onClick={() => setScreen("projects")} />
+          <div className="project-selector">
+            <Icon name="folder" size={14} />
+            <select 
+              value={currentProject} 
+              onChange={e => handleProjectChange(e.target.value)}
+              className="project-select"
             >
-              <Icon name={item.icon} size={18} />
-              <span>{item.label}</span>
-              {screen === item.id && (
-                <i className="absolute inset-y-1 left-0 w-0.5 bg-lab-blue" />
-              )}
-            </button>
-          ))}
-        </nav>
-        <div className="border-t border-lab-line p-3">
-          <div className="flex items-center gap-2 text-[9px] text-lab-dim">
-            <span className={`h-1.5 w-1.5 rounded-full ${backendDot}`} />
-            {backendLabel.toLowerCase()}
+              {projects.map(p => (
+                <option key={p.project_id} value={p.project_id}>
+                  {p.project_id}{p.archived && ' (archived)'}
+                </option>
+              ))}
+            </select>
+            <IconButton icon="plus" label="New Project" onClick={handleNewProject} className="ml-2" />
           </div>
-          <span className="mt-1 block font-data text-[9px] text-lab-dim">
-            HX CFD v1.0.0
-          </span>
         </div>
-      </aside>
-      <section className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-[58px] shrink-0 items-center gap-4 border-b border-lab-line bg-[#050607] px-4">
-          <div className="min-w-[180px]">
-            <span className="block text-[9px] uppercase tracking-[.1em] text-lab-dim">
-              Project
-            </span>
-            <span className="block truncate text-[11px] text-lab-ink">
-              {projectId}
-            </span>
+        
+        <div className="top-bar-center">
+          <div className="stage-tabs">
+            {stageNavigation.map((item: NavItem) => {
+              const status = item.id !== 'settings' ? getStageStatus(item.id as StageId) : 'configured';
+              const isActive = item.id === (screen === 'workflow' ? activeStage : screen);
+              const statusColors: Record<string, string> = {
+                blocked: 'tab-blocked',
+                required: 'tab-required',
+                configured: 'tab-configured',
+                running: 'tab-running',
+                succeeded: 'tab-succeeded',
+                failed: 'tab-failed',
+              };
+              return (
+                <button
+                  key={item.id}
+                  className={`stage-tab ${statusColors[status]} ${isActive ? 'active' : ''} ${item.dividerBefore ? 'divider-before' : ''}`}
+                  onClick={() => {
+                    if (item.id === 'settings') {
+                      setScreen('settings');
+                    } else {
+                      setScreen('workflow');
+                      setActiveStage(item.id as StageId);
+                    }
+                  }}
+                  disabled={status === 'blocked'}
+                  title={`${item.label} - ${status}`}
+                >
+                  <Icon name={item.icon} size={16} />
+                  <span>{item.label}</span>
+                  {status === 'running' && <span className="running-indicator" />}
+                  {status === 'succeeded' && <Icon name="check" size={12} className="success-mark" />}
+                  {status === 'failed' && <Icon name="warning" size={12} className="error-mark" />}
+                </button>
+              );
+            })}
           </div>
-          <div className="h-7 w-px bg-lab-line" />
-          <div className="min-w-[110px]">
-            <span className="block text-[9px] uppercase tracking-[.1em] text-lab-dim">
-              Workspace
-            </span>
-            <span className="block text-[11px] text-lab-ink">
-              {activeLabel}
-            </span>
+        </div>
+        
+        <div className="top-bar-right">
+          <div className="backend-status">
+            <span className={`status-dot ${backendReady}`} />
+            <span className="status-text">{backendReady === 'ready' ? 'Backend Ready' : backendReady === 'starting' ? 'Starting...' : 'Offline'}</span>
           </div>
-          <button
-            onClick={() => setCommandOpen(true)}
-            className="ml-2 flex h-8 min-w-[260px] max-w-[440px] flex-1 items-center gap-2 rounded-[3px] border border-[#171c21] bg-[#07090b] px-3 text-left text-[10px] text-lab-dim transition-colors hover:border-lab-line hover:bg-lab-surface"
-          >
-            <Icon name="search" size={15} />
-            Search / Command Palette{" "}
-            <span className="ml-auto font-data text-[9px]">Ctrl + K</span>
-          </button>
-          <div className="ml-auto flex items-center gap-3">
-            <span className="hidden items-center gap-1.5 font-data text-[10px] text-lab-muted xl:flex">
-              <i className={`h-1.5 w-1.5 rounded-full ${backendDot}`} />
-              {backendLabel}
-            </span>
-            <button
-              onClick={() => setScreen("profile")}
-              className="grid h-7 w-7 place-items-center rounded-full border border-lab-strongLine bg-lab-raised text-[10px] text-lab-ink"
-              aria-label="Open profile"
-            >
-              M
-            </button>
-          </div>
-        </header>
-        {bridgeNotice && (
-          <div className="flex shrink-0 items-center gap-2 border-b border-lab-amber/30 bg-[#241b0c] px-4 py-2 text-[10px] text-[#f2c970]">
-            <Icon name="warning" size={14} />
-            {bridgeNotice}
-          </div>
-        )}
-        {backendError && (
-          <div className="flex shrink-0 items-center gap-2 border-b border-lab-red/30 bg-[#240c0c] px-4 py-2 text-[10px] text-[#f87171]">
-            <Icon name="warning" size={14} />
-            {backendError}
-          </div>
-        )}
-        {screen === "projects" && (
-          <Projects
-            projectId={projectId}
-            projects={projects}
-            onProjectOpen={projectOpened}
-            onProjectsChanged={refreshProjectList}
+          <IconButton icon="bell" label="Notifications" />
+          <IconButton icon="settings" label="Settings" onClick={() => setScreen('settings')} />
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="main-content">
+        {screen === 'workflow' && snapshot && (
+          <WorkflowModule
+            stageId={activeStage}
+            snapshot={snapshot}
+            onRefresh={refreshSnapshot}
+            onExecute={handleExecute}
+            onConfigure={handleConfigure}
           />
-        )}{" "}
-        {screen === "profile" && (
-          <Profile engines={engines} error={bridgeNotice} />
-        )}{" "}
-        {screen === "documentation" && <Documentation />}
-      </section>
-      {commandOpen && (
-        <div className="absolute inset-0 z-40 grid place-items-start bg-black/70 pt-[86px]">
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-label="Command palette"
-            className="w-[480px] overflow-hidden rounded-[4px] border border-lab-strongLine bg-lab-surface shadow-floating"
-          >
-            <header className="flex items-center gap-2 border-b border-lab-line px-3 py-2.5">
-              <Icon name="search" size={16} />
-              <input
-                autoFocus
-                value={commandQuery}
-                onChange={(event) => setCommandQuery(event.target.value)}
-                placeholder="Go to a workspace"
-                className="min-w-0 flex-1 bg-transparent text-[12px] text-lab-ink outline-none placeholder:text-lab-dim"
-              />
-              <button
-                onClick={() => setCommandOpen(false)}
-                className="grid h-6 w-6 place-items-center rounded-[3px] text-lab-muted hover:bg-lab-hover hover:text-lab-ink"
-                aria-label="Close command palette"
-              >
-                <Icon name="close" size={15} />
-              </button>
-            </header>
-            <div className="p-2">
-              <span className="px-2 text-[9px] uppercase tracking-[.09em] text-lab-dim">
-                Navigate
-              </span>
-              <div className="mt-1 grid gap-1">
-                {commandResults.length ? (
-                  commandResults.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => {
-                        setScreen(item.id);
-                        setCommandOpen(false);
-                        setCommandQuery("");
-                      }}
-                      className="flex h-9 items-center gap-3 rounded-[3px] px-2 text-left text-[11px] text-lab-muted transition-colors hover:bg-lab-hover hover:text-lab-ink"
-                    >
-                      <Icon name={item.icon} size={16} />
-                      <span className="flex-1">{item.label}</span>
-                      {item.id === screen && (
-                        <span className="font-data text-[9px] text-lab-blue">
-                          CURRENT
-                        </span>
-                      )}
-                    </button>
-                  ))
-                ) : (
-                  <p className="px-2 py-5 text-center text-[11px] text-lab-muted">
-                    No workspace matches that command.
-                  </p>
-                )}
-              </div>
+        )}
+        
+        {screen === 'projects' && (
+          <ProjectsView 
+            projects={projects}
+            currentProject={currentProject}
+            onSelect={handleProjectChange}
+            onNew={handleNewProject}
+            onDelete={handleDeleteProject}
+          />
+        )}
+        
+        {screen === 'settings' && (
+          <SettingsView 
+            engines={engines}
+            backendReady={backendReady}
+            onRefreshEngines={async () => {
+              const eng = await getEngineInventory();
+              setEngines(eng);
+            }}
+          />
+        )}
+        
+        {screen === 'ai-generate' && (
+          <AIGenerateTab />
+        )}
+      </main>
+
+      {/* Bottom Status Bar */}
+      <footer className="bottom-bar">
+        <div className="bottom-left">
+          <span className="version">HX CFD v1.0.0</span>
+          <span className="separator">|</span>
+          <span className="project-path">Project: {currentProject}</span>
+        </div>
+        <div className="bottom-center">
+          {snapshot && snapshot.jobs.length > 0 && (
+            <div className="active-jobs">
+              {snapshot.jobs
+                .filter(j => ['RUNNING', 'STAGING', 'VALIDATING', 'PUBLISHING'].includes((j as any).state))
+                .map((job: any) => (
+                  <span key={job.id} className="job-indicator">
+                    <span className="pulse" /> {job.stage}: {(job as any).state}
+                  </span>
+                ))}
             </div>
-            <footer className="flex justify-between border-t border-lab-line px-3 py-2 font-data text-[9px] text-lab-dim">
-              <span>HX CFD desktop</span>
-              <span>ESC to close</span>
-            </footer>
-          </section>
+          )}
+        </div>
+        <div className="bottom-right">
+          <span className="system-info">Local-first • Offline-capable</span>
+        </div>
+      </footer>
+
+      {error && (
+        <div className="error-toast">
+          <Icon name="warning" size={16} />
+          <span>{error}</span>
+          <button onClick={() => setError(null)}>×</button>
         </div>
       )}
-    </main>
+    </div>
   );
 }
+
+function ProjectsView({ projects, currentProject, onSelect, onNew, onDelete }: {
+  projects: LocalProject[];
+  currentProject: string;
+  onSelect: (id: string) => void;
+  onNew: () => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <div className="projects-view">
+      <div className="projects-header">
+        <h1>Projects</h1>
+        <button className="primary-btn" onClick={onNew}>
+          <Icon name="plus" size={16} /> New Project
+        </button>
+      </div>
+      <div className="projects-grid">
+        {projects.length === 0 ? (
+          <div className="empty-projects">
+            <Icon name="folder" size={48} />
+            <h3>No projects yet</h3>
+            <p>Create your first CFD project to get started</p>
+            <button className="primary-btn" onClick={onNew}>
+              <Icon name="plus" size={16} /> Create Project
+            </button>
+          </div>
+        ) : (
+          projects.map(project => (
+            <div key={project.project_id} className={`project-card ${project.project_id === currentProject ? 'active' : ''}`}>
+              <div className="project-info">
+                <Icon name="folder" size={24} />
+                <div>
+                  <h4>{project.project_id}</h4>
+                  <small>Updated {new Date(project.updated_at).toLocaleDateString()}</small>
+                  {project.archived && <span className="archived-badge">Archived</span>}
+                </div>
+              </div>
+              <div className="project-actions">
+                <IconButton 
+                  icon={project.project_id === currentProject ? 'check' : 'folder'} 
+                  label={project.project_id === currentProject ? 'Current' : 'Open'}
+                  onClick={() => onSelect(project.project_id)}
+                  disabled={project.project_id === currentProject}
+                />
+                <IconButton 
+                  icon="archive" 
+                  label="Archive"
+                  onClick={() => {}}
+                />
+                <IconButton 
+                  icon="trash" 
+                  label="Delete"
+                  onClick={() => onDelete(project.project_id)}
+                  className="delete-btn"
+                />
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SettingsView({ engines, backendReady, onRefreshEngines }: {
+  engines: EngineCapability[];
+  backendReady: BackendReadiness;
+  onRefreshEngines: () => void;
+}) {
+  const [tab, setTab] = useState<'general' | 'engines'>('general');
+  
+  return (
+    <div className="settings-view">
+      <div className="settings-header">
+        <h1>Settings</h1>
+      </div>
+      <div className="settings-layout">
+        <aside className="settings-tabs">
+          <button className={tab === 'general' ? 'active' : ''} onClick={() => setTab('general')}>
+            <Icon name="gear" size={16} /> General
+          </button>
+          <button className={tab === 'engines' ? 'active' : ''} onClick={() => setTab('engines')}>
+            <Icon name="cpu" size={16} /> Engines
+          </button>
+        </aside>
+        <main className="settings-content">
+          {tab === 'general' && (
+            <div className="settings-section">
+              <h3>General</h3>
+              <div className="setting-row">
+                <label>Backend Status</label>
+                <div className="status-display">
+                  <span className={`status-dot ${backendReady}`} />
+                  <span>{backendReady === 'ready' ? 'Running' : backendReady === 'starting' ? 'Starting...' : 'Stopped'}</span>
+                </div>
+              </div>
+              <div className="setting-row">
+                <label>Project Storage</label>
+                <span className="setting-value">{typeof window !== 'undefined' ? 'Documents/HX CFD Projects' : 'Local'}</span>
+              </div>
+              <div className="setting-row">
+                <button className="secondary-btn" onClick={onRefreshEngines}>
+                  <Icon name="spark" size={14} /> Refresh Engine Status
+                </button>
+              </div>
+            </div>
+          )}
+          
+          {tab === 'engines' && (
+            <div className="settings-section">
+              <h3>Local Engineering Engines</h3>
+              <p className="setting-hint">These are the 14 implementation engines managed by HX CFD. They are not shown in the workflow UI.</p>
+              <div className="engines-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Engine</th>
+                      <th>Status</th>
+                      <th>Version</th>
+                      <th>Workflow</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {engines.map(engine => (
+                      <tr key={engine.id}>
+                        <td>{engine.display_name}</td>
+                        <td>
+                          <span className={`engine-status ${engine.status}`}>
+                            {engine.status === 'ready' || engine.status === 'bundled' ? 'Ready' : 'Unavailable'}
+                          </span>
+                        </td>
+                        <td>{engine.version || '—'}</td>
+                        <td>{engine.workflow.join(', ')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+export default App;

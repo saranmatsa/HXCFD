@@ -20,7 +20,7 @@ class GmshOnlyRegistry:
 
     async def capability(self, engine_id: str, refresh: bool = False) -> SimpleNamespace:
         del refresh
-        return SimpleNamespace(status="unavailable" if engine_id == "freecad" else "ready")
+        return SimpleNamespace(status="unavailable" if engine_id in {"freecad", "cadquery"} else "ready")
 
     async def requirements_available(
         self, engine_ids: tuple[str, ...], refresh: bool = False
@@ -35,7 +35,7 @@ class GmshMeshingRegistry(GmshOnlyRegistry):
     async def capability(self, engine_id: str, refresh: bool = False) -> SimpleNamespace:
         del refresh
         return SimpleNamespace(
-            status="unavailable" if engine_id in {"freecad", "openfoam", "paraview"} else "ready",
+            status="unavailable" if engine_id in {"freecad", "cadquery", "openfoam", "paraview"} else "ready",
             display_name=engine_id,
             executable=None,
         )

@@ -2,6 +2,8 @@
 //! 
 //! Manages the Python backend process.
 
+use crate::error::{HxCfdError, HxCfdResult};
+use crate::logging;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::Write;
@@ -9,8 +11,6 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use tauri::{AppHandle, Manager};
 use crate::config::AppConfig;
-use crate::error::{HxCfdError, HxCfdResult};
-use crate::logging;
 
 /// Backend process status
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -172,34 +172,210 @@ impl BackendManager {
         )))
     }
 
-    /// Query the canonical fourteen-engine inventory through a private local contract.
-    pub fn engine_inventory(&self, config: &AppConfig) -> HxCfdResult<Value> {
-        self.run_local_contract(config, &["--engine-inventory"], None)
-    }
-
     /// Read a project's local workflow state through the managed backend executable.
-    pub fn workflow_snapshot(&self, config: &AppConfig, project_id: &str) -> HxCfdResult<Value> {
-        self.run_local_contract(config, &["--workflow-snapshot", project_id], None)
-    }
+        pub fn workflow_snapshot(&self, config: &AppConfig, project_id: &str) -> HxCfdResult<Value> {
+            let args: Vec<String> = vec!["--workflow-snapshot".to_string(), project_id.to_string()];
+            let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+            self.run_local_contract(config, &args_ref, None)
+        }
+
+        /// Query the canonical fourteen-engine inventory through a private local contract.
+        pub fn engine_inventory(&self, config: &AppConfig) -> HxCfdResult<Value> {
+            let args: Vec<String> = vec!["--engine-inventory".to_string()];
+            let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+            self.run_local_contract(config, &args_ref, None)
+        }
 
     /// Persist a semantic workflow recipe without exposing a localhost endpoint to the UI.
-    pub fn configure_workflow_stage(
-        &self,
-        config: &AppConfig,
-        project_id: &str,
-        stage_id: &str,
-        recipe: &Value,
-    ) -> HxCfdResult<Value> {
-        let payload = serde_json::to_string(recipe)
-            .map_err(|error| HxCfdError::Backend(format!("Unable to serialize workflow recipe: {}", error)))?;
-        self.run_local_contract(
-            config,
-            &["--workflow-config", project_id, stage_id],
-            Some(&payload),
-        )
-    }
+            pub fn configure_workflow_stage(
+                &self,
+                config: &AppConfig,
+                project_id: &str,
+                stage_id: &str,
+                recipe: &Value,
+            ) -> HxCfdResult<Value> {
+                let payload = serde_json::to_string(recipe)
+                    .map_err(|error| HxCfdError::Backend(format!("Unable to serialize workflow recipe: {}", error)))?;
+                let args: Vec<String> = vec![
+                    "--workflow-config".to_string(),
+                    project_id.to_string(),
+                    stage_id.to_string(),
+                ];
+                let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+                self.run_local_contract(config, &args_ref, Some(&payload))
+            }
 
-    fn run_local_contract(
+        /// Execute a configured workflow stage through the real local adapter.
+                pub fn execute_workflow_stage(
+                    &self,
+                    config: &AppConfig,
+                    project_id: &str,
+                    stage_id: &str,
+                    recipe: Option<Value>,
+                ) -> HxCfdResult<Value> {
+                    let payload = recipe
+                        .map(|r| serde_json::to_string(&r))
+                        .transpose()
+                        .map_err(|error| HxCfdError::Backend(format!("Unable to serialize workflow recipe: {}", error)))?;
+                    let args: Vec<String> = vec![
+                        "--workflow-execute".to_string(),
+                        project_id.to_string(),
+                        stage_id.to_string(),
+                    ];
+                    let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+                    self.run_local_contract(config, &args_ref, payload.as_deref())
+                }
+
+                /// Create a durable job for a workflow stage.
+                pub fn create_workflow_job(
+                    &self,
+                    config: &AppConfig,
+                    project_id: &str,
+                    stage_id: &str,
+                    recipe: Option<Value>,
+                ) -> HxCfdResult<Value> {
+                    let payload = recipe
+                        .map(|r| serde_json::to_string(&r))
+                        .transpose()
+                        .map_err(|error| HxCfdError::Backend(format!("Unable to serialize workflow recipe: {}", error)))?;
+                    let args: Vec<String> = vec![
+                        "--workflow-job-create".to_string(),
+                        project_id.to_string(),
+                        stage_id.to_string(),
+                    ];
+                    let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+                    self.run_local_contract(config, &args_ref, payload.as_deref())
+                }
+
+        /// Transition a workflow job state.
+                pub fn transition_workflow_job(
+                    &self,
+                    config: &AppConfig,
+                    project_id: &str,
+                    job_id: &str,
+                    state: &str,
+                    error: Option<String>,
+                    log_artifact_id: Option<String>,
+                ) -> HxCfdResult<Value> {
+                    let mut args: Vec<String> = vec![
+                        "--workflow-job-transition".to_string(),
+                        project_id.to_string(),
+                        job_id.to_string(),
+                        state.to_string(),
+                    ];
+                    let mut payload = serde_json::json!({});
+                    if let Some(e) = error {
+                        payload["error"] = serde_json::json!(e);
+                    }
+                    if let Some(la) = log_artifact_id {
+                        payload["log_artifact_id"] = serde_json::json!(la);
+                    }
+                    let payload_str = serde_json::to_string(&payload)
+                        .map_err(|error| HxCfdError::Backend(format!("Unable to serialize job transition: {}", error)))?;
+                    let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+                    self.run_local_contract(config, &args_ref, Some(&payload_str))
+                }
+
+        /// List workflow artifacts for a project.
+                pub fn list_workflow_artifacts(
+                    &self,
+                    config: &AppConfig,
+                    project_id: &str,
+                    stage_id: Option<String>,
+                ) -> HxCfdResult<Value> {
+                    let mut args: Vec<String> = vec!["--workflow-artifacts-list".to_string(), project_id.to_string()];
+                    if let Some(sid) = stage_id {
+                        args.push(sid);
+                    }
+                    let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+                    self.run_local_contract(config, &args_ref, None)
+                }
+
+        /// Read a workflow artifact by ID.
+        pub fn read_workflow_artifact(
+            &self,
+            config: &AppConfig,
+            project_id: &str,
+            artifact_id: &str,
+        ) -> HxCfdResult<Value> {
+            self.run_local_contract(config, &["--workflow-artifact-read", project_id, artifact_id], None)
+        }
+
+        /// Export a workflow artifact to a destination.
+        pub fn export_workflow_artifact(
+            &self,
+            config: &AppConfig,
+            project_id: &str,
+            artifact_id: &str,
+            destination: &str,
+        ) -> HxCfdResult<Value> {
+            let payload = serde_json::json!({"destination": destination});
+            let payload_str = serde_json::to_string(&payload)
+                .map_err(|error| HxCfdError::Backend(format!("Unable to serialize export request: {}", error)))?;
+            self.run_local_contract(config, &["--workflow-artifact-export", project_id, artifact_id], Some(&payload_str))
+        }
+
+        /// Create a local project.
+        pub fn create_local_project(
+            &self,
+            config: &AppConfig,
+            project_id: &str,
+        ) -> HxCfdResult<Value> {
+            self.run_local_contract(config, &["--project-create", project_id], None)
+        }
+
+        /// Open an existing local project.
+        pub fn open_local_project(
+            &self,
+            config: &AppConfig,
+            project_id: &str,
+        ) -> HxCfdResult<Value> {
+            self.run_local_contract(config, &["--project-open", project_id], None)
+        }
+
+        /// Rename a local project.
+        pub fn rename_local_project(
+            &self,
+            config: &AppConfig,
+            project_id: &str,
+            new_project_id: &str,
+        ) -> HxCfdResult<Value> {
+            self.run_local_contract(config, &["--project-rename", project_id, new_project_id], None)
+        }
+
+        /// Archive a local project.
+        pub fn archive_local_project(
+            &self,
+            config: &AppConfig,
+            project_id: &str,
+        ) -> HxCfdResult<Value> {
+            self.run_local_contract(config, &["--project-archive", project_id], None)
+        }
+
+        /// Delete a local project.
+        pub fn delete_local_project(
+            &self,
+            config: &AppConfig,
+            project_id: &str,
+        ) -> HxCfdResult<Value> {
+            self.run_local_contract(config, &["--project-delete", project_id], None)
+        }
+
+        /// List local projects.
+        pub fn list_local_projects(
+            &self,
+            config: &AppConfig,
+            include_archived: bool,
+        ) -> HxCfdResult<Value> {
+            let args = if include_archived {
+                vec!["--project-list", "--include-archived"]
+            } else {
+                vec!["--project-list"]
+            };
+            self.run_local_contract(config, &args, None)
+        }
+
+        fn run_local_contract(
         &self,
         config: &AppConfig,
         arguments: &[&str],

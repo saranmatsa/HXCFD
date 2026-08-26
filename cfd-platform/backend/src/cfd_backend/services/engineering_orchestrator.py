@@ -127,19 +127,21 @@ class EngineeringOrchestrator:
         source = self._source_path(configuration)
         self._validate_geometry_source(source)
 
-        # FreeCAD remains the preferred native preparation route when it is
-        # installed.  Gmsh's OpenCASCADE kernel is a real, local fallback for
-        # solid CAD exchange formats; it is not a fabricated geometry result.
+        # Priority: FreeCAD (full parametric) > CadQuery (scriptable) > Gmsh (fallback)
         freecad = await self.engines.capability("freecad", refresh=True)
         if freecad.status in {"ready", "bundled"}:
             return await self._prepare_geometry_with_freecad(run_path, source)
 
+        cadquery = await self.engines.capability("cadquery", refresh=True)
+        if cadquery.status in {"ready", "bundled"}:
+            return await self._prepare_geometry_with_cadquery(run_path, source)
+
         if source.suffix.lower() not in GMSH_SOLID_CAD_EXTENSIONS:
             raise EngineeringExecutionError(
-                f"{source.suffix.upper().lstrip('.')} geometry import requires local FreeCAD. "
+                f"{source.suffix.upper().lstrip('.')} geometry import requires local FreeCAD or CadQuery. "
                 "Gmsh is available only as a fallback for solid STEP, IGES, and BREP CAD files; "
                 "it does not turn an STL or OBJ surface mesh into a watertight CFD solid. "
-                "Install or configure FreeCAD, then repair and close the source surface before meshing."
+                "Install or configure FreeCAD or CadQuery, then repair and close the source surface before meshing."
             )
         return await self._prepare_geometry_with_gmsh(run_path, source)
 
@@ -161,6 +163,54 @@ class EngineeringOrchestrator:
             "artifacts": [str(output), str(report)],
             "geometry": geometry,
             "stdout": stdout[-2000:],
+        }
+
+    async def _prepare_geometry_with_cadquery(self, run_path: Path, source: Path) -> dict[str, Any]:
+        """Prepare geometry using CadQuery (lighter weight than FreeCAD)."""
+        await self._require(("cadquery",))
+
+        import cadquery.cqgi as cqgi
+        import json
+
+        script = f"""
+import cadquery as cq
+import json
+result = cq.importers.importStep(r\"{source}\")
+# Validate: check for closed solids
+solids = list(result.val().solids())
+if len(solids) == 0:
+    raise ValueError(\"No solids found in imported geometry\")
+for s in solids:
+    if not s.isClosed():
+        raise ValueError(f\"Solid {{s}} is not closed\")
+result.val().exportStep(r\"{run_path / 'prepared.step'}\")
+"""
+        script_path = run_path / "prepare_cq.py"
+        script_path.write_text(script)
+
+        # Execute via cqgi (no subprocess needed - runs in-process)
+        build_result = cqgi.parse(script).build()
+
+        output = run_path / "prepared.step"
+        report = run_path / "geometry-report.json"
+
+        if not output.exists():
+            raise EngineeringExecutionError("CadQuery did not produce output STEP file")
+
+        # Build report
+        report_data = {
+            "engine": "cadquery",
+            "source": str(source),
+            "output": str(output),
+            "success": True,
+            "solids_count": len(list(build_result.results[0].shape.solids())) if build_result.success else 0,
+        }
+        report.write_text(json.dumps(report_data, indent=2))
+
+        return {
+            "engines": ["CadQuery"],
+            "artifacts": [str(output), str(report)],
+            "geometry": report_data,
         }
 
     async def _prepare_geometry_with_gmsh(self, run_path: Path, source: Path) -> dict[str, Any]:

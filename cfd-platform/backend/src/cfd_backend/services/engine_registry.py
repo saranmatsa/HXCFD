@@ -325,6 +325,23 @@ class EngineRegistry:
         different. Both repositories must import in the same worker before the
         surrogate stage is declared ready.
         """
+        # asyncio.create_subprocess_exec is not implemented on Windows
+        # Skip probe on Windows platforms
+        import sys
+        if sys.platform == "win32":
+            logger.debug("PhysicsNeMo probe skipped on Windows")
+            required = "required" if not definition.optional else "optional"
+            return EngineCapability(
+                id=definition.id,
+                display_name=definition.display_name,
+                workflow=list(definition.workflow),
+                runtime=definition.runtime,
+                optional=definition.optional,
+                adapter=definition.adapter,
+                status="unavailable",
+                detail=f"{definition.display_name} probe skipped on Windows.",
+            )
+
         python = self._physicsnemo_python()
         cfd_source = self._physicsnemo_cfd_source()
         if python and cfd_source:

@@ -1,5 +1,16 @@
 import { useState, useEffect } from 'react'
+import {
+  Card,
+  Button,
+  Badge,
+  Input,
+  Select,
+  Modal,
+  Table,
+  Tabs,
+} from './ui/DesignSystem'
 
+// ─── Types ────────────────────────────────────────────────────────────
 interface SolverConfig {
   id: string
   name: string
@@ -33,6 +44,7 @@ interface LicenseInfo {
   features: string[]
 }
 
+// ─── Component ────────────────────────────────────────────────────────
 export function SettingsView() {
   const [activeTab, setActiveTab] = useState<'solvers' | 'projects' | 'app' | 'license' | 'advanced'>('solvers')
   const [solvers, setSolvers] = useState<SolverConfig[]>([])
@@ -122,12 +134,12 @@ export function SettingsView() {
     }
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusVariant = (status: string): 'default' | 'success' | 'warning' | 'error' | 'info' => {
     switch (status) {
-      case 'found': return 'status-success'
-      case 'not_found': return 'status-error'
-      case 'checking': return 'status-warning'
-      default: return 'status-default'
+      case 'found': return 'success'
+      case 'not_found': return 'error'
+      case 'checking': return 'warning'
+      default: return 'default'
     }
   }
 
@@ -137,11 +149,11 @@ export function SettingsView() {
 
   const getTypeIcon = (type: string) => {
     switch (type) {
-      case 'openfoam': return '🌊'
-      case 'gmsh': return '🔷'
-      case 'paraview': return '📊'
-      case 'python': return '🐍'
-      default: return '⚙️'
+      case 'openfoam': return <OpenFOAMIcon />
+      case 'gmsh': return <GmshIcon />
+      case 'paraview': return <ParaViewIcon />
+      case 'python': return <PythonIcon />
+      default: return <SettingsIcon />
     }
   }
 
@@ -150,389 +162,444 @@ export function SettingsView() {
   }
 
   return (
-    <div className="settings-view">
-      <div className="view-header">
-        <h2>Settings</h2>
+    <div className="settings-view p-6 space-y-6">
+      {/* ─── Header ───────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-display-md text-text-primary">Settings</h2>
       </div>
 
-      <div className="settings-layout">
-        <nav className="settings-nav">
-          <button className={`nav-item ${activeTab === 'solvers' ? 'active' : ''}`} onClick={() => setActiveTab('solvers')}>
-            <span className="nav-icon">⚙️</span> Solvers & Tools
-          </button>
-          <button className={`nav-item ${activeTab === 'projects' ? 'active' : ''}`} onClick={() => setActiveTab('projects')}>
-            <span className="nav-icon">📁</span> Project Defaults
-          </button>
-          <button className={`nav-item ${activeTab === 'app' ? 'active' : ''}`} onClick={() => setActiveTab('app')}>
-            <span className="nav-icon">🎨</span> Appearance
-          </button>
-          <button className={`nav-item ${activeTab === 'license' ? 'active' : ''}`} onClick={() => setActiveTab('license')}>
-            <span className="nav-icon">📄</span> License
-          </button>
-          <button className={`nav-item ${activeTab === 'advanced' ? 'active' : ''}`} onClick={() => setActiveTab('advanced')}>
-            <span className="nav-icon">🔧</span> Advanced
-          </button>
+      {/* ─── Layout ───────────────────────────────────────────────────── */}
+      <div className="settings-layout grid grid-cols-[240px_1fr] gap-6 min-h-[calc(100vh-200px)]">
+        {/* ─── Sidebar Navigation ─────────────────────────────────────── */}
+        <nav className="settings-nav flex flex-col gap-1 p-4 bg-bg-secondary rounded-xl border border-border-subtle h-fit" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+          <Tabs
+            tabs={[
+              { key: 'solvers', label: 'Solvers & Tools', icon: <SettingsIcon /> },
+              { key: 'projects', label: 'Project Defaults', icon: <FolderIcon /> },
+              { key: 'app', label: 'Appearance', icon: <PaletteIcon /> },
+              { key: 'license', label: 'License', icon: <LicenseIcon /> },
+              { key: 'advanced', label: 'Advanced', icon: <CogIcon /> },
+            ]}
+            activeTab={activeTab}
+            onChange={setActiveTab}
+            variant="pills"
+            className="w-full"
+          />
         </nav>
 
-        <div className="settings-content">
+        {/* ─── Content ────────────────────────────────────────────────── */}
+        <div className="settings-content min-w-0">
+          {/* ─── Solvers Tab ──────────────────────────────────────────── */}
           {activeTab === 'solvers' && (
-            <div className="settings-section">
-              <div className="section-header">
-                <h3>Solver & Tool Configuration</h3>
-                <div className="section-actions">
-                  <button className="btn btn-secondary" onClick={checkAllSolvers} disabled={checkingSolvers}>
-                    {checkingSolvers ? '🔄 Checking...' : '🔍 Check All'}
-                  </button>
-                  <button className="btn btn-primary" onClick={() => setShowAddSolverModal(true)}>
-                    + Add Solver
-                  </button>
+            <div className="space-y-6">
+              <Card padding="lg">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="text-heading-lg text-text-primary">Solver & Tool Configuration</h3>
+                    <p className="text-body-sm text-text-muted mt-1">Configure external solvers and tools used by HX CFD</p>
+                  </div>
+                  <div className="flex gap-3">
+                    <Button variant="secondary" onClick={checkAllSolvers} disabled={checkingSolvers} icon={<RefreshIcon />} iconPosition="left">
+                      {checkingSolvers ? 'Checking...' : 'Check All'}
+                    </Button>
+                    <Button variant="primary" onClick={() => setShowAddSolverModal(true)} icon={<PlusIcon />} iconPosition="left">
+                      Add Solver
+                    </Button>
+                  </div>
                 </div>
-              </div>
 
-              <div className="solvers-table">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Type</th>
-                      <th>Name</th>
-                      <th>Path</th>
-                      <th>Version</th>
-                      <th>Status</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {solvers.map(solver => (
-                      <tr key={solver.id}>
-                        <td><span className="type-badge">{getTypeIcon(solver.type)} {getTypeLabel(solver.type)}</span></td>
-                        <td><strong>{solver.name}</strong></td>
-                        <td className="path-cell" title={solver.path}>{solver.path}</td>
-                        <td>{solver.version}</td>
-                        <td>
-                          <span className={`status-badge ${getStatusColor(solver.status)}`}>
-                            {solver.status === 'checking' ? '🔄 Checking...' : getStatusLabel(solver.status)}
-                          </span>
-                        </td>
-                        <td className="actions-cell">
-                          {solver.status !== 'found' && !testingSolver && (
-                            <button className="btn btn-sm btn-secondary" onClick={() => checkSolver(solver)}>
-                              Check
-                            </button>
-                          )}
-                          {testingSolver === solver.id && <span className="checking">🔄</span>}
-                          <button className="btn btn-sm btn-danger" onClick={() => handleRemoveSolver(solver.id)}>
-                            Remove
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                <Table
+                  columns={[
+                    { key: 'type', header: 'Type', render: (s) => (
+                      <Badge variant="info" size="sm" className="gap-1">
+                        {getTypeIcon(s.type)} {getTypeLabel(s.type)}
+                      </Badge>
+                    )},
+                    { key: 'name', header: 'Name', render: (s) => <strong>{s.name}</strong> },
+                    { key: 'path', header: 'Path', className: 'font-mono text-body-sm text-text-muted max-w-xs truncate', render: (s) => <span title={s.path}>{s.path}</span> },
+                    { key: 'version', header: 'Version' },
+                    { key: 'status', header: 'Status', render: (s) => (
+                      <Badge variant={getStatusVariant(s.status)} size="sm">
+                        {s.status === 'checking' ? 'Checking...' : getStatusLabel(s.status)}
+                      </Badge>
+                    )},
+                    { key: 'actions', header: 'Actions', render: (s) => (
+                      <div className="flex items-center gap-2">
+                        {s.status !== 'found' && !testingSolver && (
+                          <Button variant="secondary" size="sm" onClick={() => checkSolver(s)}>Check</Button>
+                        )}
+                        {testingSolver === s.id && <span className="animate-spin text-text-muted">⟳</span>}
+                        <Button variant="ghost" size="sm" onClick={() => handleRemoveSolver(s.id)} className="text-accent-red hover:text-accent-redHover">
+                          <TrashIcon />
+                        </Button>
+                      </div>
+                    )},
+                  ]}
+                  data={solvers}
+                  keyField="id"
+                  hoverable
+                />
+              </Card>
 
-              <div className="solver-hints">
-                <h4>Expected Paths</h4>
-                <ul>
-                  <li><strong>OpenFOAM:</strong> Root installation directory (e.g., <code>C:\OpenFOAM\v11</code>)</li>
-                  <li><strong>Gmsh:</strong> Executable file (e.g., <code>C:\Gmsh\4.12.2\gmsh.exe</code>)</li>
-                  <li><strong>ParaView:</strong> Executable file (e.g., <code>C:\ParaView\5.12.0\bin\paraview.exe</code>)</li>
-                  <li><strong>Python:</strong> Executable file (e.g., <code>C:\Python311\python.exe</code>)</li>
+              {/* ─── Solver Hints ───────────────────────────────────────── */}
+              <Card padding="md" className="bg-accent-blue/5 border-accent-blue/20">
+                <h4 className="text-heading-sm text-text-primary mb-3">Expected Paths</h4>
+                <ul className="space-y-2 text-body-sm text-text-secondary">
+                  <li><strong>OpenFOAM:</strong> Root installation directory (e.g., <code className="px-1.5 py-0.5 bg-bg-tertiary rounded text-text-primary font-mono text-caption-sm">C:\OpenFOAM\v11</code>)</li>
+                  <li><strong>Gmsh:</strong> Executable file (e.g., <code className="px-1.5 py-0.5 bg-bg-tertiary rounded text-text-primary font-mono text-caption-sm">C:\Gmsh\4.12.2\gmsh.exe</code>)</li>
+                  <li><strong>ParaView:</strong> Executable file (e.g., <code className="px-1.5 py-0.5 bg-bg-tertiary rounded text-text-primary font-mono text-caption-sm">C:\ParaView\5.12.0\bin\paraview.exe</code>)</li>
+                  <li><strong>Python:</strong> Executable file (e.g., <code className="px-1.5 py-0.5 bg-bg-tertiary rounded text-text-primary font-mono text-caption-sm">C:\Python311\python.exe</code>)</li>
                 </ul>
-              </div>
+              </Card>
             </div>
           )}
 
+          {/* ─── Projects Tab ────────────────────────────────────────────── */}
           {activeTab === 'projects' && (
-            <div className="settings-section">
-              <h3>Project Default Settings</h3>
-              <div className="settings-form">
-                <div className="form-group">
-                  <label>Default Solver</label>
-                  <select value={projectSettings.defaultSolver} onChange={(e) => handleProjectSettingsChange('defaultSolver', e.target.value)}>
-                    <option value="openfoam">OpenFOAM</option>
-                    <option value="su2">SU2</option>
-                    <option value="code_saturne">Code_Saturne</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Default Turbulence Model</label>
-                  <select value={projectSettings.defaultTurbulenceModel} onChange={(e) => handleProjectSettingsChange('defaultTurbulenceModel', e.target.value)}>
-                    <option value="kOmegaSST">k-ω SST</option>
-                    <option value="kEpsilon">k-ε</option>
-                    <option value="realizableKE">Realizable k-ε</option>
-                    <option value="spalartAllmaras">Spalart-Allmaras</option>
-                    <option value="laminar">Laminar</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Default Mesh Algorithm</label>
-                  <select value={projectSettings.defaultMeshAlgorithm} onChange={(e) => handleProjectSettingsChange('defaultMeshAlgorithm', e.target.value)}>
-                    <option value="delaunay3d">Delaunay 3D</option>
-                    <option value="hxt">HXT (Hex-dominant)</option>
-                    <option value="netgen">Netgen</option>
-                    <option value="mmg">MMG</option>
-                    <option value="boundaryLayer">Boundary Layer</option>
-                  </select>
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Auto-save Interval (seconds)</label>
-                    <input
+            <div className="space-y-6 max-w-3xl">
+              <Card padding="lg">
+                <h3 className="text-heading-lg text-text-primary mb-6">Project Default Settings</h3>
+                <div className="space-y-5">
+                  <Select
+                    label="Default Solver"
+                    value={projectSettings.defaultSolver}
+                    onChange={(e) => handleProjectSettingsChange('defaultSolver', e.target.value)}
+                    options={[
+                      { value: 'openfoam', label: 'OpenFOAM' },
+                      { value: 'su2', label: 'SU2' },
+                      { value: 'code_saturne', label: 'Code_Saturne' },
+                    ]}
+                  />
+                  <Select
+                    label="Default Turbulence Model"
+                    value={projectSettings.defaultTurbulenceModel}
+                    onChange={(e) => handleProjectSettingsChange('defaultTurbulenceModel', e.target.value)}
+                    options={[
+                      { value: 'kOmegaSST', label: 'k-ω SST' },
+                      { value: 'kEpsilon', label: 'k-ε' },
+                      { value: 'realizableKE', label: 'Realizable k-ε' },
+                      { value: 'spalartAllmaras', label: 'Spalart-Allmaras' },
+                      { value: 'laminar', label: 'Laminar' },
+                    ]}
+                  />
+                  <Select
+                    label="Default Mesh Algorithm"
+                    value={projectSettings.defaultMeshAlgorithm}
+                    onChange={(e) => handleProjectSettingsChange('defaultMeshAlgorithm', e.target.value)}
+                    options={[
+                      { value: 'delaunay3d', label: 'Delaunay 3D' },
+                      { value: 'hxt', label: 'HXT (Hex-dominant)' },
+                      { value: 'netgen', label: 'Netgen' },
+                      { value: 'mmg', label: 'MMG' },
+                      { value: 'boundaryLayer', label: 'Boundary Layer' },
+                    ]}
+                  />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input
+                      label="Auto-save Interval (seconds)"
                       type="number"
                       value={projectSettings.autoSaveInterval}
                       onChange={(e) => handleProjectSettingsChange('autoSaveInterval', parseInt(e.target.value))}
-                      min="60"
-                      max="3600"
+                      min={60}
+                      max={3600}
                     />
-                  </div>
-                  <div className="form-group">
-                    <label>Max Concurrent Simulations</label>
-                    <input
+                    <Input
+                      label="Max Concurrent Simulations"
                       type="number"
                       value={projectSettings.maxConcurrentSimulations}
                       onChange={(e) => handleProjectSettingsChange('maxConcurrentSimulations', parseInt(e.target.value))}
-                      min="1"
-                      max="8"
+                      min={1}
+                      max={8}
                     />
                   </div>
+                  <Select
+                    label="Default Output Format"
+                    value={projectSettings.defaultOutputFormat}
+                    onChange={(e) => handleProjectSettingsChange('defaultOutputFormat', e.target.value)}
+                    options={[
+                      { value: 'vtk', label: 'VTK (Legacy)' },
+                      { value: 'vtu', label: 'VTU (XML)' },
+                      { value: 'foam', label: 'OpenFOAM Native' },
+                      { value: 'cgns', label: 'CGNS' },
+                    ]}
+                  />
+                  <div className="flex justify-end gap-3 pt-4 border-t border-border-subtle">
+                    <Button variant="primary">Save Project Defaults</Button>
+                    <Button variant="secondary">Reset to Defaults</Button>
+                  </div>
                 </div>
-                <div className="form-group">
-                  <label>Default Output Format</label>
-                  <select value={projectSettings.defaultOutputFormat} onChange={(e) => handleProjectSettingsChange('defaultOutputFormat', e.target.value)}>
-                    <option value="vtk">VTK (Legacy)</option>
-                    <option value="vtu">VTU (XML)</option>
-                    <option value="foam">OpenFOAM Native</option>
-                    <option value="cgns">CGNS</option>
-                  </select>
-                </div>
-                <div className="form-actions">
-                  <button className="btn btn-primary">Save Project Defaults</button>
-                  <button className="btn btn-secondary">Reset to Defaults</button>
-                </div>
-              </div>
+              </Card>
             </div>
           )}
 
+          {/* ─── App Tab ─────────────────────────────────────────────────── */}
           {activeTab === 'app' && (
-            <div className="settings-section">
-              <h3>Appearance & Behavior</h3>
-              <div className="settings-form">
-                <div className="form-group">
-                  <label>Theme</label>
-                  <select value={appSettings.theme} onChange={(e) => handleAppSettingsChange('theme', e.target.value as 'light' | 'dark' | 'system')}>
-                    <option value="system">System Default</option>
-                    <option value="light">Light</option>
-                    <option value="dark">Dark</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Language</label>
-                  <select value={appSettings.language} onChange={(e) => handleAppSettingsChange('language', e.target.value)}>
-                    <option value="en">English</option>
-                    <option value="de">German</option>
-                    <option value="fr">French</option>
-                    <option value="es">Spanish</option>
-                    <option value="ja">Japanese</option>
-                    <option value="zh">Chinese</option>
-                  </select>
-                </div>
-                <div className="form-group checkbox-group">
-                  <label>
+            <div className="space-y-6 max-w-2xl">
+              <Card padding="lg">
+                <h3 className="text-heading-lg text-text-primary mb-6">Appearance & Behavior</h3>
+                <div className="space-y-5">
+                  <Select
+                    label="Theme"
+                    value={appSettings.theme}
+                    onChange={(e) => handleAppSettingsChange('theme', e.target.value as 'light' | 'dark' | 'system')}
+                    options={[
+                      { value: 'system', label: 'System Default' },
+                      { value: 'light', label: 'Light' },
+                      { value: 'dark', label: 'Dark' },
+                    ]}
+                  />
+                  <Select
+                    label="Language"
+                    value={appSettings.language}
+                    onChange={(e) => handleAppSettingsChange('language', e.target.value)}
+                    options={[
+                      { value: 'en', label: 'English' },
+                      { value: 'de', label: 'German' },
+                      { value: 'fr', label: 'French' },
+                      { value: 'es', label: 'Spanish' },
+                      { value: 'ja', label: 'Japanese' },
+                      { value: 'zh', label: 'Chinese' },
+                    ]}
+                  />
+                  <label className="flex items-center gap-3 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={appSettings.autoCheckUpdates}
                       onChange={(e) => handleAppSettingsChange('autoCheckUpdates', e.target.checked)}
+                      className="w-4 h-4 rounded border-border-default text-accent-blue focus:ring-2 focus:ring-accent-blue/20"
                     />
-                    Automatically check for updates
+                    <span className="text-body text-text-primary">Automatically check for updates</span>
                   </label>
-                </div>
-                <div className="form-group checkbox-group">
-                  <label>
+                  <label className="flex items-center gap-3 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={appSettings.telemetryEnabled}
                       onChange={(e) => handleAppSettingsChange('telemetryEnabled', e.target.checked)}
+                      className="w-4 h-4 rounded border-border-default text-accent-blue focus:ring-2 focus:ring-accent-blue/20"
                     />
-                    Send anonymous usage statistics
+                    <span className="text-body text-text-primary">Send anonymous usage statistics</span>
                   </label>
-                </div>
-                <div className="form-group">
-                  <label>Log Level</label>
-                  <select value={appSettings.logLevel} onChange={(e) => handleAppSettingsChange('logLevel', e.target.value as 'debug' | 'info' | 'warn' | 'error')}>
-                    <option value="debug">Debug</option>
-                    <option value="info">Info</option>
-                    <option value="warn">Warning</option>
-                    <option value="error">Error Only</option>
-                  </select>
-                </div>
-                <div className="form-actions">
-                  <button className="btn btn-primary">Save Appearance Settings</button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'license' && (
-            <div className="settings-section">
-              <h3>License Information</h3>
-              <div className="license-card">
-                <div className="license-header">
-                  <div className="license-type">
-                    <span className={`license-badge ${license.type}`}>{license.type.charAt(0).toUpperCase() + license.type.slice(1)}</span>
-                    <span className={`license-status ${license.status}`}>{license.status.charAt(0).toUpperCase() + license.status.slice(1)}</span>
+                  <Select
+                    label="Log Level"
+                    value={appSettings.logLevel}
+                    onChange={(e) => handleAppSettingsChange('logLevel', e.target.value as 'debug' | 'info' | 'warn' | 'error')}
+                    options={[
+                      { value: 'debug', label: 'Debug' },
+                      { value: 'info', label: 'Info' },
+                      { value: 'warn', label: 'Warning' },
+                      { value: 'error', label: 'Error Only' },
+                    ]}
+                  />
+                  <div className="flex justify-end gap-3 pt-4 border-t border-border-subtle">
+                    <Button variant="primary">Save Appearance Settings</Button>
                   </div>
-                  {license.expiresAt && (
-                    <div className="license-expiry">
-                      Expires: {new Date(license.expiresAt).toLocaleDateString()}
+                </div>
+              </Card>
+            </div>
+          )}
+// ─── License Tab ───────────────────────────────────────────────
+          {/* ─── License Tab ─────────────────────────────────────────────── */}
+          {activeTab === 'license' && (
+            <div className="space-y-6 max-w-2xl">
+              <Card padding="lg">
+                <h3 className="text-heading-lg text-text-primary mb-6">License Information</h3>
+                <div className="bg-gradient-to-r from-accent-blue/10 to-accent-purple/10 border border-accent-blue/20 rounded-xl p-6 mb-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-3 mb-2">
+                        <Badge variant="info" className="text-sm">{license.type.charAt(0).toUpperCase() + license.type.slice(1)}</Badge>
+                        <Badge variant="success" className="text-sm">{license.status.charAt(0).toUpperCase() + license.status.slice(1)}</Badge>
+                      </div>
+                      <p className="text-body text-text-muted">HX CFD Community Edition - Free for personal and commercial use</p>
                     </div>
-                  )}
-                </div>
-                <div className="license-features">
-                  <h4>Included Features</h4>
-                  <ul>
-                    {license.features.map((feature, i) => (
-                      <li key={i}>✓ {feature}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="license-actions">
-                  {license.type === 'community' && (
-                    <button className="btn btn-primary">Upgrade License</button>
-                  )}
-                  {license.status === 'trial' && (
-                    <button className="btn btn-secondary">Enter License Key</button>
-                  )}
-                  <button className="btn btn-secondary">View License Details</button>
-                </div>
-              </div>
+                    {license.expiresAt && (
+                      <div className="text-body-sm text-text-muted">
+                        Expires: {new Date(license.expiresAt).toLocaleDateString()}
+                      </div>
+                    )}
+                  </div>
+                  </div>
+                  <div className="space-y-2">
+                    <h4 className="text-heading-sm text-text-primary">Included Features</h4>
+                    <ul className="space-y-2">
+                      {license.features.map((feature, i) => (
+                        <li key={i} className="flex items-center gap-2 text-body text-text-secondary">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-accent-green flex-shrink-0"><polyline points="20 6 9 17 4 12"/></svg>
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="flex flex-wrap gap-3 pt-4 border-t border-border-subtle">
+                    {license.type === 'community' && (
+                      <Button variant="primary" icon={<ArrowUpIcon />} iconPosition="left">Upgrade License</Button>
+                    )}
+                    {license.status === 'trial' && (
+                      <Button variant="secondary" icon={<KeyIcon />} iconPosition="left">Enter License Key</Button>
+                    )}
+                    <Button variant="secondary" icon={<FileTextIcon />} iconPosition="left">View License Details</Button>
+                  </div>
+                </Card>
 
-              <div className="license-comparison">
-                <h4>Feature Comparison</h4>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Feature</th>
-                      <th>Community</th>
-                      <th>Professional</th>
-                      <th>Enterprise</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr><td>Basic CFD Solvers</td><td>✓</td><td>✓</td><td>✓</td></tr>
-                    <tr><td>Mesh Generation (Gmsh)</td><td>✓</td><td>✓</td><td>✓</td></tr>
-                    <tr><td>Post-Processing (ParaView)</td><td>✓</td><td>✓</td><td>✓</td></tr>
-                    <tr><td>Parallel Processing</td><td>2 cores</td><td>16 cores</td><td>Unlimited</td></tr>
-                    <tr><td>Optimization Module</td><td>✗</td><td>✓</td><td>✓</td></tr>
-                    <tr><td>Custom Solvers</td><td>✗</td><td>✓</td><td>✓</td></tr>
-                    <tr><td>Cloud/HPC Integration</td><td>✗</td><td>✗</td><td>✓</td></tr>
-                    <tr><td>Priority Support</td><td>✗</td><td>✓</td><td>✓</td></tr>
-                    <tr><td>Source Code Access</td><td>✗</td><td>✗</td><td>✓</td></tr>
-                  </tbody>
-                </table>
+                <Card padding="lg">
+                  <h4 className="text-heading-md text-text-primary mb-4">Feature Comparison</h4>
+                  <Table
+                    columns={[
+                      { key: 'feature', header: 'Feature' },
+                      { key: 'community', header: 'Community', render: () => <span className="text-center text-accent-green">✓</span> },
+                      { key: 'professional', header: 'Professional', render: () => <span className="text-center text-accent-green">✓</span> },
+                      { key: 'enterprise', header: 'Enterprise', render: () => <span className="text-center text-accent-green">✓</span> },
+                    ]}
+                    data={[
+                      { feature: 'Basic CFD Solvers', community: true, professional: true, enterprise: true },
+                      { feature: 'Mesh Generation (Gmsh)', community: true, professional: true, enterprise: true },
+                      { feature: 'Post-Processing (ParaView)', community: true, professional: true, enterprise: true },
+                      { feature: 'Parallel Processing', community: '2 cores', professional: '16 cores', enterprise: 'Unlimited' },
+                      { feature: 'Optimization Module', community: false, professional: true, enterprise: true },
+                      { feature: 'Custom Solvers', community: false, professional: true, enterprise: true },
+                      { feature: 'Cloud/HPC Integration', community: false, professional: false, enterprise: true },
+                      { feature: 'Priority Support', community: false, professional: true, enterprise: true },
+                      { feature: 'Source Code Access', community: false, professional: false, enterprise: true },
+                    ]}
+                    keyField="feature"
+                  />
+                </Card>
               </div>
-            </div>
-          )}
+            )}
 
-          {activeTab === 'advanced' && (
-            <div className="settings-section">
-              <h3>Advanced Settings</h3>
-              <div className="settings-form">
-                <div className="form-group">
-                  <label>Working Directory</label>
-                  <input type="text" value="C:\\CFD\\Projects" readOnly />
-                  <small>Change requires application restart</small>
-                </div>
-                <div className="form-group">
-                  <label>Cache Directory</label>
-                  <input type="text" value="C:\\CFD\\Cache" readOnly />
-                </div>
-                <div className="form-group">
-                  <label>Log Directory</label>
-                  <input type="text" value="C:\\CFD\\Logs" readOnly />
-                </div>
-                <div className="form-group checkbox-group">
-                  <label>
-                    <input type="checkbox" defaultChecked />
-                    Enable GPU Acceleration (if available)
-                  </label>
-                </div>
-                <div className="form-group checkbox-group">
-                  <label>
-                    <input type="checkbox" defaultChecked />
-                    Use System Proxy Settings
-                  </label>
-                </div>
-                <div className="form-group checkbox-group">
-                  <label>
-                    <input type="checkbox" />
-                    Enable Experimental Features
-                  </label>
-                </div>
-                <div className="form-group">
-                  <label>Python Environment Path</label>
-                  <input type="text" value="C:\\CFD\\venv" readOnly />
-                  <small>Managed by the application</small>
-                </div>
-                <div className="form-actions">
-                  <button className="btn btn-secondary">Open Config Folder</button>
-                  <button className="btn btn-secondary">View Logs</button>
-                  <button className="btn btn-danger">Reset All Settings</button>
-                </div>
+            {/* ─── Advanced Tab ─────────────────────────────────────────────── */}
+            {activeTab === 'advanced' && (
+              <div className="space-y-6 max-w-3xl">
+                <Card padding="lg">
+                  <h3 className="text-heading-lg text-text-primary mb-6">Advanced Settings</h3>
+                  <div className="space-y-5">
+                    <Input label="Working Directory" value="C:\\CFD\\Projects" readOnly />
+                    <small className="text-caption-sm text-text-muted">Change requires application restart</small>
+                    <Input label="Cache Directory" value="C:\\CFD\\Cache" readOnly />
+                    <Input label="Log Directory" value="C:\\CFD\\Logs" readOnly />
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input type="checkbox" defaultChecked className="w-4 h-4 rounded border-border-default text-accent-blue focus:ring-2 focus:ring-accent-blue/20" />
+                      <span className="text-body text-text-primary">Enable GPU Acceleration (if available)</span>
+                    </label>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input type="checkbox" defaultChecked className="w-4 h-4 rounded border-border-default text-accent-blue focus:ring-2 focus:ring-accent-blue/20" />
+                      <span className="text-body text-text-primary">Use System Proxy Settings</span>
+                    </label>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input type="checkbox" className="w-4 h-4 rounded border-border-default text-accent-blue focus:ring-2 focus:ring-accent-blue/20" />
+                      <span className="text-body text-text-primary">Enable Experimental Features</span>
+                    </label>
+                    <Input label="Python Environment Path" value="C:\\CFD\\venv" readOnly />
+                    <small className="text-caption-sm text-text-muted">Managed by the application</small>
+                    <div className="flex flex-wrap gap-3 pt-4 border-t border-border-subtle">
+                      <Button variant="secondary" icon={<FolderIcon />} iconPosition="left">Open Config Folder</Button>
+                      <Button variant="secondary" icon={<FileTextIcon />} iconPosition="left">View Logs</Button>
+                      <Button variant="danger" icon={<TrashIcon />} iconPosition="left">Reset All Settings</Button>
+                    </div>
+                  </div>
+                </Card>
               </div>
-            </div>
-          )}
-        </div>
-      </div>
+            )}
 
-      {showAddSolverModal && (
-        <div className="modal-overlay" onClick={() => setShowAddSolverModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Add Solver / Tool</h3>
-              <button className="modal-close" onClick={() => setShowAddSolverModal(false)}>×</button>
-            </div>
-            <form onSubmit={handleAddSolver} className="modal-form">
-              <div className="form-group">
-                <label>Type</label>
-                <select
+            {/* ─── Add Solver Modal ─────────────────────────────────────────── */}
+            <Modal
+              isOpen={showAddSolverModal}
+              onClose={() => setShowAddSolverModal(false)}
+              title="Add Solver / Tool"
+              size="md"
+            >
+              <form onSubmit={handleAddSolver} className="space-y-5">
+                <Select
+                  label="Type"
                   value={newSolver.type}
                   onChange={(e) => setNewSolver({ ...newSolver, type: e.target.value as SolverConfig['type'] })}
-                >
-                  <option value="openfoam">OpenFOAM</option>
-                  <option value="gmsh">Gmsh</option>
-                  <option value="paraview">ParaView</option>
-                  <option value="python">Python</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Name</label>
-                <input
-                  type="text"
+                  options={[
+                    { value: 'openfoam', label: 'OpenFOAM' },
+                    { value: 'gmsh', label: 'Gmsh' },
+                    { value: 'paraview', label: 'ParaView' },
+                    { value: 'python', label: 'Python' },
+                  ]}
+                />
+                <Input
+                  label="Name"
                   value={newSolver.name}
                   onChange={(e) => setNewSolver({ ...newSolver, name: e.target.value })}
-                  required
                   placeholder="e.g., OpenFOAM v11"
+                  required
                 />
-              </div>
-              <div className="form-group">
-                <label>Path</label>
-                <input
-                  type="text"
+                <Input
+                  label="Path"
                   value={newSolver.path}
                   onChange={(e) => setNewSolver({ ...newSolver, path: e.target.value })}
-                  required
                   placeholder="e.g., C:\\OpenFOAM\\v11"
+                  required
                 />
-              </div>
-              <div className="form-actions">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowAddSolverModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Add Solver</button>
-              </div>
-            </form>
+                <div className="flex justify-end gap-3 pt-4 border-t border-border-subtle">
+                  <Button variant="secondary" onClick={() => setShowAddSolverModal(false)}>Cancel</Button>
+                  <Button variant="primary" type="submit">Add Solver</Button>
+                </div>
+              </form>
+            </Modal>
           </div>
-        </div>
-      )}
+      </div>
     </div>
   )
 }
+
+// ─── Helper Components ────────────────────────────────────────────────
+
+function DetailItem({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between py-2 border-b border-border-subtle/50">
+      <span className="text-caption-sm text-text-muted">{label}</span>
+      <span className="text-body-sm text-text-primary text-right max-w-[60%] truncate">{value}</span>
+    </div>
+  )
+}
+
+function getStatusVariant(status: string): 'default' | 'success' | 'warning' | 'error' | 'info' {
+  switch (status) {
+    case 'found': return 'success'
+    case 'not_found': return 'error'
+    case 'checking': return 'warning'
+    default: return 'default'
+  }
+}
+
+function getStatusLabel(status: string) {
+  return status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')
+}
+
+function getTypeIcon(type: string) {
+  switch (type) {
+    case 'openfoam': return <OpenFOAMIcon />
+    case 'gmsh': return <GmshIcon />
+    case 'paraview': return <ParaViewIcon />
+    case 'python': return <PythonIcon />
+    default: return <SettingsIcon />
+  }
+}
+
+function getTypeLabel(type: string) {
+  return type.charAt(0).toUpperCase() + type.slice(1)
+}
+
+// ─── Icons ────────────────────────────────────────────────────────────
+function SettingsIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg> }
+function FolderIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2.5h6.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/><path d="M3 9h18"/></svg> }
+function PaletteIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r="5.5"/><path d="M13.5 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/></svg> }
+function LicenseIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg> }
+function CogIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg> }
+function OpenFOAMIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5v14"/></svg> }
+function GmshIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16v16H4z"/><path d="M4 12h16"/><path d="M12 4v16"/></svg> }
+function ParaViewIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg> }
+function PythonIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v18M12 3a5 5 0 0 1 5 5M12 21a5 5 0 0 0 5-5"/></svg> }
+function RefreshIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> }
+function PlusIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg> }
+function TrashIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> }
+function PlayIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 5h5v5H5zM14 14h5v5h-5zM7.5 10v2a2 2 0 0 0 2 2H14"/></svg> }
+function PauseIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg> }
+function ChartIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg> }
+function FileTextIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg> }
+function ArrowUpIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 15l-6-6-6 6"/><path d="M12 3v18"/></svg> }
+function KeyIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg> }

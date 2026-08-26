@@ -1,5 +1,15 @@
 import { useState, useEffect } from 'react'
+import {
+  Card,
+  Button,
+  Badge,
+  ProgressBar,
+  Table,
+  EmptyState,
+  Avatar,
+} from './ui/DesignSystem'
 
+// ─── Types ────────────────────────────────────────────────────────────
 interface Project {
   id: string
   name: string
@@ -45,6 +55,7 @@ interface Stats {
   totalCpuHours: number
 }
 
+// ─── Component ────────────────────────────────────────────────────────
 export function Dashboard() {
   const [stats, setStats] = useState<Stats>({
     totalProjects: 0,
@@ -105,22 +116,21 @@ export function Dashboard() {
     }, 500)
   }, [])
 
-  const getStatusColor = (status: string) => {
+  const getStatusVariant = (status: string): 'default' | 'success' | 'warning' | 'error' | 'info' => {
     switch (status) {
       case 'active':
       case 'completed':
       case 'running':
-        return 'status-success'
+        return 'success'
       case 'pending':
       case 'generating':
-        return 'status-warning'
+        return 'warning'
       case 'failed':
-      case 'error':
-        return 'status-error'
+        return 'error'
       case 'draft':
-        return 'status-info'
+        return 'info'
       default:
-        return 'status-default'
+        return 'default'
     }
   }
 
@@ -129,186 +139,279 @@ export function Dashboard() {
   }
 
   if (loading) {
-    return <div className="dashboard loading">Loading dashboard...</div>
+    return (
+      <div className="dashboard">
+        <div className="animate-pulse space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[...Array(7)].map((_, i) => (
+              <div key={i} className="h-20 bg-bg-tertiary rounded-xl" />
+            ))}
+          </div>
+          <div className="h-64 bg-bg-tertiary rounded-xl" />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="h-80 bg-bg-tertiary rounded-xl" />
+            <div className="h-80 bg-bg-tertiary rounded-xl" />
+            <div className="h-80 bg-bg-tertiary rounded-xl lg:col-span-2" />
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="dashboard">
-      <section className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-icon projects">📁</div>
-          <div className="stat-content">
-            <span className="stat-value">{stats.totalProjects}</span>
-            <span className="stat-label">Total Projects</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon meshes">🔲</div>
-          <div className="stat-content">
-            <span className="stat-value">{stats.totalMeshes}</span>
-            <span className="stat-label">Total Meshes</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon simulations">⚙️</div>
-          <div className="stat-content">
-            <span className="stat-value">{stats.totalSimulations}</span>
-            <span className="stat-label">Total Simulations</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon running">🏃</div>
-          <div className="stat-content">
-            <span className="stat-value">{stats.runningSimulations}</span>
-            <span className="stat-label">Running</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon completed">✅</div>
-          <div className="stat-content">
-            <span className="stat-value">{stats.completedSimulations}</span>
-            <span className="stat-label">Completed</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon cpu">⏱️</div>
-          <div className="stat-content">
-            <span className="stat-value">{stats.totalCpuHours.toFixed(1)}</span>
-            <span className="stat-label">CPU Hours</span>
-          </div>
-        </div>
+    <div className="dashboard p-6 space-y-6">
+      {/* ─── Stats Grid ─────────────────────────────────────────────── */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-4">
+        <StatCard
+          icon={<FolderIcon />}
+          label="Total Projects"
+          value={stats.totalProjects}
+          color="blue"
+        />
+        <StatCard
+          icon={<MeshIcon />}
+          label="Total Meshes"
+          value={stats.totalMeshes}
+          color="amber"
+        />
+        <StatCard
+          icon={<CpuIcon />}
+          label="Total Simulations"
+          value={stats.totalSimulations}
+          color="purple"
+        />
+        <StatCard
+          icon={<PlayIcon />}
+          label="Running"
+          value={stats.runningSimulations}
+          color="green"
+        />
+        <StatCard
+          icon={<CheckIcon />}
+          label="Completed"
+          value={stats.completedSimulations}
+          color="emerald"
+        />
+        <StatCard
+          icon={<AlertIcon />}
+          label="Failed"
+          value={stats.failedSimulations}
+          color="red"
+        />
+        <StatCard
+          icon={<ClockIcon />}
+          label="CPU Hours"
+          value={stats.totalCpuHours.toFixed(1)}
+          color="cyan"
+        />
       </section>
 
-      <section className="dashboard-section">
-        <div className="section-header">
-          <h3>Recent Projects</h3>
-          <button className="btn btn-secondary">View All</button>
+      {/* ─── Recent Projects ────────────────────────────────────────── */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-heading-md text-text-primary">Recent Projects</h3>
+          <Button variant="ghost" size="sm">View All</Button>
         </div>
-        <div className="table-container">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Solver</th>
-                <th>Status</th>
-                <th>Meshes</th>
-                <th>Simulations</th>
-                <th>Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentProjects.map((project) => (
-                <tr key={project.id}>
-                  <td>
-                    <div className="project-name">
-                      <strong>{project.name}</strong>
-                      <span className="project-description">{project.description}</span>
-                    </div>
-                  </td>
-                  <td><span className="solver-badge">{project.solver}</span></td>
-                  <td><span className={`status-badge ${getStatusColor(project.status)}`}>{getStatusLabel(project.status)}</span></td>
-                  <td>{project.meshCount}</td>
-                  <td>{project.simulationCount}</td>
-                  <td>{project.updatedAt}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table
+          columns={[
+            { key: 'name', header: 'Name', render: (p) => (
+              <div>
+                <div className="font-medium text-text-primary">{p.name}</div>
+                <div className="text-caption-sm text-text-muted">{p.description}</div>
+              </div>
+            )},
+            { key: 'solver', header: 'Solver', render: (p) => <span className="px-2 py-0.5 text-caption-sm bg-bg-tertiary rounded">{p.solver}</span> },
+            { key: 'status', header: 'Status', render: (p) => <Badge variant={getStatusVariant(p.status)}>{getStatusLabel(p.status)}</Badge> },
+            { key: 'meshCount', header: 'Meshes', className: 'text-right' },
+            { key: 'simulationCount', header: 'Simulations', className: 'text-right' },
+            { key: 'updatedAt', header: 'Updated', className: 'font-mono text-text-muted' },
+          ]}
+          data={recentProjects}
+          keyField="id"
+          hoverable
+        />
       </section>
 
-      <div className="dashboard-grid">
-        <section className="dashboard-section">
-          <div className="section-header">
-            <h3>Recent Meshes</h3>
-            <button className="btn btn-secondary">View All</button>
+      {/* ─── Meshes & Simulations Grid ──────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-heading-md text-text-primary">Recent Meshes</h3>
+            <Button variant="ghost" size="sm">View All</Button>
           </div>
-          <div className="table-container">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Project</th>
-                  <th>Format</th>
-                  <th>Status</th>
-                  <th>Elements</th>
-                  <th>Nodes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentMeshes.map((mesh) => (
-                  <tr key={mesh.id}>
-                    <td>{mesh.name}</td>
-                    <td>{mesh.projectId}</td>
-                    <td><span className="format-badge">{mesh.format}</span></td>
-                    <td><span className={`status-badge ${getStatusColor(mesh.status)}`}>{getStatusLabel(mesh.status)}</span></td>
-                    <td>{mesh.elementCount.toLocaleString()}</td>
-                    <td>{mesh.nodeCount.toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table
+            columns={[
+              { key: 'name', header: 'Name' },
+              { key: 'projectId', header: 'Project' },
+              { key: 'format', header: 'Format', render: (m) => <Badge variant="info" size="sm">{m.format}</Badge> },
+              { key: 'status', header: 'Status', render: (m) => <Badge variant={getStatusVariant(m.status)} size="sm">{getStatusLabel(m.status)}</Badge> },
+              { key: 'elementCount', header: 'Elements', className: 'text-right font-mono', render: (m) => m.elementCount.toLocaleString() },
+              { key: 'nodeCount', header: 'Nodes', className: 'text-right font-mono', render: (m) => m.nodeCount.toLocaleString() },
+            ]}
+            data={recentMeshes}
+            keyField="id"
+            hoverable
+          />
         </section>
 
-        <section className="dashboard-section">
-          <div className="section-header">
-            <h3>Recent Simulations</h3>
-            <button className="btn btn-secondary">View All</button>
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-heading-md text-text-primary">Recent Simulations</h3>
+            <Button variant="ghost" size="sm">View All</Button>
           </div>
-          <div className="table-container">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Solver</th>
-                  <th>Status</th>
-                  <th>Progress</th>
-                  <th>Iteration</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentSimulations.map((sim) => (
-                  <tr key={sim.id}>
-                    <td>{sim.name}</td>
-                    <td><span className="solver-badge">{sim.solverType}</span></td>
-                    <td><span className={`status-badge ${getStatusColor(sim.status)}`}>{getStatusLabel(sim.status)}</span></td>
-                    <td>
-                      <div className="progress-bar">
-                        <div className="progress-fill" style={{ width: `${sim.progress}%` }}></div>
-                      </div>
-                      <span className="progress-text">{sim.progress}%</span>
-                    </td>
-                    <td>{sim.currentIteration} / {sim.maxIterations}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table
+            columns={[
+              { key: 'name', header: 'Name' },
+              { key: 'solverType', header: 'Solver', render: (s) => <Badge variant="info" size="sm">{s.solverType}</Badge> },
+              { key: 'status', header: 'Status', render: (s) => <Badge variant={getStatusVariant(s.status)} size="sm">{getStatusLabel(s.status)}</Badge> },
+              { key: 'progress', header: 'Progress', render: (s) => (
+                <div className="w-32">
+                  <ProgressBar value={s.progress} size="sm" showLabel />
+                </div>
+              )},
+              { key: 'currentIteration', header: 'Iteration', className: 'font-mono', render: (s) => `${s.currentIteration} / ${s.maxIterations}` },
+            ]}
+            data={recentSimulations}
+            keyField="id"
+            hoverable
+          />
         </section>
       </div>
 
-      <section className="dashboard-section quick-actions">
-        <h3>Quick Actions</h3>
-        <div className="action-buttons">
-          <button className="btn btn-primary action-btn">
-            <span className="action-icon">➕</span>
-            <span>New Project</span>
-          </button>
-          <button className="btn btn-secondary action-btn">
-            <span className="action-icon">🔲</span>
-            <span>Generate Mesh</span>
-          </button>
-          <button className="btn btn-secondary action-btn">
-            <span className="action-icon">▶️</span>
-            <span>Run Simulation</span>
-          </button>
-          <button className="btn btn-secondary action-btn">
-            <span className="action-icon">📈</span>
-            <span>View Results</span>
-          </button>
+      {/* ─── Quick Actions ──────────────────────────────────────────── */}
+      <section className="space-y-4 pt-2">
+        <h3 className="text-heading-md text-text-primary">Quick Actions</h3>
+        <div className="flex flex-wrap gap-3">
+          <Button variant="primary" icon={<PlusIcon />} iconPosition="left">
+            New Project
+          </Button>
+          <Button variant="secondary" icon={<MeshIcon />} iconPosition="left">
+            Generate Mesh
+          </Button>
+          <Button variant="secondary" icon={<PlayIcon />} iconPosition="left">
+            Run Simulation
+          </Button>
+          <Button variant="secondary" icon={<ChartIcon />} iconPosition="left">
+            View Results
+          </Button>
         </div>
       </section>
     </div>
+  )
+}
+
+// ─── Helper Components ──────────────────────────────────────────────
+
+interface StatCardProps {
+  icon: ReactNode
+  label: string
+  value: number | string
+  color: 'blue' | 'amber' | 'purple' | 'green' | 'emerald' | 'red' | 'cyan'
+}
+
+function StatCard({ icon, label, value, color }: StatCardProps) {
+  const colorStyles = {
+    blue: 'bg-accent-blue/20 text-accent-blue border-accent-blue/30',
+    amber: 'bg-accent-amber/20 text-accent-amber border-accent-amber/30',
+    purple: 'bg-accent-purple/20 text-accent-purple border-accent-purple/30',
+    green: 'bg-accent-green/20 text-accent-green border-accent-green/30',
+    emerald: 'bg-accent-emerald/20 text-accent-emerald border-accent-emerald/30',
+    red: 'bg-accent-red/20 text-accent-red border-accent-red/30',
+    cyan: 'bg-accent-cyan/20 text-accent-cyan border-accent-cyan/30',
+  }
+
+  return (
+    <Card padding="md" className="flex items-center gap-4">
+      <div className={twMerge('w-12 h-12 rounded-xl flex items-center justify-center', colorStyles[color])}>
+        {icon}
+      </div>
+      <div>
+        <div className="text-caption text-text-muted">{label}</div>
+        <div className="text-display-sm font-semibold text-text-primary">{value}</div>
+      </div>
+    </Card>
+  )
+}
+
+// ─── Icons ──────────────────────────────────────────────────────────
+
+function FolderIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2.5h6.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z" />
+      <path d="M3 9h18" />
+    </svg>
+  )
+}
+
+function MeshIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 4h16v16H4z" />
+      <path d="M4 12h16" />
+      <path d="M12 4v16" />
+    </svg>
+  )
+}
+
+function CpuIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="7" y="7" width="10" height="10" rx="1" />
+      <path d="M9 1v3m6-3v3M9 20v3m6-3v3M1 9h3m16 0h3M1 15h3m16 0h3" />
+    </svg>
+  )
+}
+
+function PlayIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 5h5v5H5zM14 14h5v5h-5zM7.5 10v2a2 2 0 0 0 2 2H14" />
+      <path d="m12 17 2 2 2-2" />
+    </svg>
+  )
+}
+
+function CheckIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  )
+}
+
+function AlertIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="8" x2="12" y2="12" />
+      <line x1="12" y1="16" x2="12.01" y2="16" />
+    </svg>
+  )
+}
+
+function ClockIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  )
+}
+
+function PlusIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  )
+}
+
+function ChartIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 3v18h18" />
+      <path d="m19 9-5 5-4-4-3 3" />
+    </svg>
   )
 }

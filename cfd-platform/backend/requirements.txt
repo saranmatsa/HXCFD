@@ -1,0 +1,13 @@
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+python-multipart>=0.0.6
+httpx>=0.26.0
+pyyaml>=6.0.1
+cadquery>=2.8.0
+cadquery-ocp>=7.9.3.1
+gmsh>=4.11.0
+nevergrad>=0.4.5
+openmdao>=3.30.0
+numpy>=1.26.0

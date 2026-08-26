@@ -1,0 +1,62 @@
+# LLM Provider Configuration - BYOK (Bring Your Own Key)
+# User enters API keys, app fetches endpoint URLs dynamically
+
+providers:
+  google:
+    name: "Google Gemini"
+    api_key_env: "GOOGLE_API_KEY"
+    models_url: "https://generativelanguage.googleapis.com/v1beta/models"
+    default_model: "gemini-1.5-pro"
+    supports_cad: true
+
+  openai:
+    name: "OpenAI"
+    api_key_env: "OPENAI_API_KEY"
+    models_url: "https://api.openai.com/v1/models"
+    default_model: "gpt-4o"
+    supports_cad: true
+
+  nvidia:
+    name: "NVIDIA NIM"
+    api_key_env: "NVIDIA_API_KEY"
+    models_url: "https://integrate.api.nvidia.com/v1/models"
+    default_model: "nvidia/nemotron-3-ultra"
+    supports_cad: true
+
+  groq:
+    name: "Groq"
+    api_key_env: "GROQ_API_KEY"
+    models_url: "https://api.groq.com/openai/v1/models"
+    default_model: "llama-3.1-70b-versatile"
+    supports_cad: true
+
+# CAD Generation Settings
+cad:
+  engines:
+    - name: "cadquery"
+      priority: 1
+      python_package: "cadquery"
+    - name: "freecad"
+      priority: 2
+      python_package: "freecad"
+  output_formats: ["step", "stl", "brep"]
+  default_format: "step"
+
+# Meshing Settings
+meshing:
+  engine: "gmsh"
+  python_package: "gmsh"
+  default_algorithm: "tetrahedral"
+  boundary_layers: 3
+
+# Optimization Settings
+optimization:
+  engines:
+    - name: "nevergrad"
+      python_package: "nevergrad"
+      algorithms: ["CMA", "PSO", "DE"]
+    - name: "openmdao"
+      python_package: "openmdao"
+      algorithms: ["SLSQP", "COBYLA"]
+  default_engine: "nevergrad"
+  default_algorithm: "CMA"

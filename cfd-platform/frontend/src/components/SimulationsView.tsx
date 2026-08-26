@@ -1,5 +1,18 @@
 import { useState, useEffect } from 'react'
+import {
+  Card,
+  Button,
+  Badge,
+  Input,
+  Select,
+  Textarea,
+  Modal,
+  Table,
+  ProgressBar,
+  EmptyState,
+} from './ui/DesignSystem'
 
+// ─── Types ────────────────────────────────────────────────────────────
 interface Simulation {
   id: string
   name: string
@@ -41,6 +54,7 @@ interface Mesh {
   projectId: string
 }
 
+// ─── Component ────────────────────────────────────────────────────────
 export function SimulationsView() {
   const [simulations, setSimulations] = useState<Simulation[]>([])
   const [projects, setProjects] = useState<Project[]>([])
@@ -63,7 +77,6 @@ export function SimulationsView() {
   })
 
   useEffect(() => {
-    // Mock data
     const mockProjects: Project[] = [
       { id: '1', name: 'Airfoil Analysis' },
       { id: '2', name: 'Pipe Flow' },
@@ -193,7 +206,6 @@ export function SimulationsView() {
     setSimulations(mockSimulations)
     setLoading(false)
 
-    // Simulate running simulations
     const interval = setInterval(() => {
       setSimulations(prev => prev.map(sim => {
         if (sim.status === 'running' && sim.progress < 100) {
@@ -221,13 +233,17 @@ export function SimulationsView() {
     return () => clearInterval(interval)
   }, [])
 
-  const getStatusColor = (status: string) => {
+  const getStatusVariant = (status: string): 'default' | 'success' | 'warning' | 'error' | 'info' => {
     switch (status) {
-      case 'running': return 'status-success'
-      case 'completed': return 'status-success'
-      case 'pending': return 'status-warning'
-      case 'failed': return 'status-error'
-      default: return 'status-default'
+      case 'running':
+      case 'completed':
+        return 'success'
+      case 'pending':
+        return 'warning'
+      case 'failed':
+        return 'error'
+      default:
+        return 'default'
     }
   }
 
@@ -286,422 +302,497 @@ export function SimulationsView() {
   }
 
   if (loading) {
-    return <div className="simulations-view loading">Loading simulations...</div>
+    return (
+      <div className="simulations-view p-6">
+        <div className="animate-pulse space-y-6">
+          <div className="h-12 bg-bg-tertiary rounded-xl" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-72 bg-bg-tertiary rounded-xl" />
+            ))}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="simulations-view">
-      <div className="view-header">
-        <h2>Simulations</h2>
-        <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
-          + New Simulation
-        </button>
+    <div className="simulations-view p-6 space-y-6">
+      {/* ─── Header ───────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-display-md text-text-primary">Simulations</h2>
+        <Button variant="primary" icon={<PlusIcon />} iconPosition="left" onClick={() => setShowCreateModal(true)}>
+          New Simulation
+        </Button>
       </div>
 
-      <div className="simulations-grid">
+      {/* ─── Simulations Grid ────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {simulations.map((sim) => (
-          <div key={sim.id} className="simulation-card" onClick={() => { setSelectedSimulation(sim); setShowDetailModal(true); }}>
-            <div className="simulation-header">
-              <h3>{sim.name}</h3>
-              <span className={`status-badge ${getStatusColor(sim.status)}`}>{getStatusLabel(sim.status)}</span>
-            </div>
-            <div className="simulation-meta">
-              <div className="meta-item">
-                <span className="meta-label">Project</span>
-                <span className="meta-value">{sim.projectName}</span>
-              </div>
-              <div className="meta-item">
-                <span className="meta-label">Mesh</span>
-                <span className="meta-value">{sim.meshName}</span>
-              </div>
-              <div className="meta-item">
-                <span className="meta-label">Solver</span>
-                <span className="meta-value solver-badge">{sim.solverType}</span>
-              </div>
-              <div className="meta-item">
-                <span className="meta-label">Turbulence</span>
-                <span className="meta-value">{sim.turbulenceModel}</span>
+          <Card
+            key={sim.id}
+            padding="md"
+            hover
+            onClick={() => { setSelectedSimulation(sim); setShowDetailModal(true); }}
+            className="cursor-pointer"
+          >
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div className="flex-1 min-w-0">
+                <h3 className="text-heading-sm text-text-primary truncate">{sim.name}</h3>
+                <Badge variant={getStatusVariant(sim.status)} className="mt-2">
+                  {getStatusLabel(sim.status)}
+                </Badge>
               </div>
             </div>
 
-            {sim.status === 'running' && (
-              <div className="simulation-progress">
-                <div className="progress-bar">
-                  <div className="progress-fill" style={{ width: `${sim.progress}%` }}></div>
+            <div className="space-y-3 mb-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-bg-tertiary rounded-lg p-3">
+                  <div className="text-caption-sm text-text-muted">Project</div>
+                  <div className="font-medium text-text-primary">{sim.projectName}</div>
                 </div>
-                <div className="progress-info">
-                  <span>Iteration: {sim.currentIteration} / {sim.maxIterations}</span>
-                  <span>{sim.progress.toFixed(1)}%</span>
+                <div className="bg-bg-tertiary rounded-lg p-3">
+                  <div className="text-caption-sm text-text-muted">Mesh</div>
+                  <div className="font-medium text-text-primary">{sim.meshName}</div>
                 </div>
               </div>
-            )}
-
-            {sim.status === 'completed' && (
-              <div className="simulation-results">
-                <span className="result-item">CPU Hours: {sim.cpuHours.toFixed(1)}</span>
-                <span className="result-item">Residuals: {sim.residuals ? sim.residuals.Ux.toExponential(1) : 'N/A'}</span>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-bg-tertiary rounded-lg p-3">
+                  <div className="text-caption-sm text-text-muted">Solver</div>
+                  <div className="font-medium text-text-primary"><Badge variant="info" size="sm">{sim.solverType}</Badge></div>
+                </div>
+                <div className="bg-bg-tertiary rounded-lg p-3">
+                  <div className="text-caption-sm text-text-muted">Turbulence</div>
+                  <div className="font-medium text-text-primary">{sim.turbulenceModel}</div>
+                </div>
               </div>
-            )}
 
-            {sim.status === 'failed' && (
-              <div className="simulation-error">
-                <span>⚠️ Simulation failed at iteration {sim.currentIteration}</span>
-                <span>Residuals diverged</span>
-              </div>
-            )}
-
-            <div className="simulation-actions">
-              {sim.status === 'pending' && (
-                <button className="btn btn-sm btn-primary" onClick={(e) => { e.stopPropagation(); handleStartSimulation(sim.id); }}>
-                  ▶️ Start
-                </button>
-              )}
               {sim.status === 'running' && (
-                <button className="btn btn-sm btn-warning" onClick={(e) => { e.stopPropagation(); handleStopSimulation(sim.id); }}>
-                  ⏸️ Stop
-                </button>
+                <div className="simulation-progress">
+                  <ProgressBar value={sim.progress} size="md" showLabel />
+                  <div className="flex justify-between text-caption-sm text-text-muted">
+                    <span>Iteration: {sim.currentIteration} / {sim.maxIterations}</span>
+                    <span>{sim.progress.toFixed(1)}%</span>
+                  </div>
+                </div>
               )}
+
               {sim.status === 'completed' && (
-                <button className="btn btn-sm btn-secondary" onClick={(e) => { e.stopPropagation(); setSelectedSimulation(sim); setShowDetailModal(true); }}>
-                  📈 Results
-                </button>
+                <div className="flex flex-wrap gap-4 pt-2 border-t border-border-subtle">
+                  <span className="text-caption-sm text-text-muted flex items-center gap-1">
+                    <span className="text-text-primary">{sim.cpuHours.toFixed(1)}</span> CPU Hours
+                  </span>
+                  <span className="text-caption-sm text-text-muted flex items-center gap-1">
+                    Residuals: {sim.residuals ? sim.residuals.Ux.toExponential(1) : 'N/A'}
+                  </span>
+                </div>
               )}
+
               {sim.status === 'failed' && (
-                <button className="btn btn-sm btn-secondary" onClick={(e) => { e.stopPropagation(); handleStartSimulation(sim.id); }}>
-                  🔄 Restart
-                </button>
+                <div className="p-3 bg-accent-red/10 border border-accent-red/20 rounded-lg">
+                  <p className="text-body-sm text-accent-red flex items-center gap-2">
+                    <span>⚠</span>
+                    <span>Simulation failed at iteration {sim.currentIteration}</span>
+                  </p>
+                  <p className="text-caption-sm text-accent-red/80 mt-1">Residuals diverged</p>
+                </div>
               )}
-              <button className="btn btn-sm btn-danger" onClick={(e) => { e.stopPropagation(); handleDeleteSimulation(sim.id); }}>
-                🗑️
-              </button>
-            </div>
-          </div>
+
+              <div className="flex flex-wrap gap-2 pt-2 border-t border-border-subtle">
+                {sim.status === 'pending' && (
+                  <Button variant="primary" size="sm" icon={<PlayIcon />} iconPosition="left" onClick={(e) => { e.stopPropagation(); handleStartSimulation(sim.id); }}>
+                    Start
+                  </Button>
+                )}
+                {sim.status === 'running' && (
+                  <Button variant="secondary" size="sm" icon={<PauseIcon />} iconPosition="left" onClick={(e) => { e.stopPropagation(); handleStopSimulation(sim.id); }}>
+                    Stop
+                  </Button>
+                )}
+                {sim.status === 'completed' && (
+                  <Button variant="secondary" size="sm" icon={<ChartIcon />} iconPosition="left" onClick={(e) => { e.stopPropagation(); setSelectedSimulation(sim); setShowDetailModal(true); }}>
+                    Results
+                  </Button>
+                )}
+                {sim.status === 'failed' && (
+                  <Button variant="secondary" size="sm" icon={<RefreshIcon />} iconPosition="left" onClick={(e) => { e.stopPropagation(); handleStartSimulation(sim.id); }}>
+                    Restart
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" icon={<TrashIcon />} iconPosition="left" onClick={(e) => { e.stopPropagation(); handleDeleteSimulation(sim.id); }} className="text-accent-red hover:text-accent-redHover">
+                </Button>
+              </div>
+          </Card>
         ))}
       </div>
 
-      {showCreateModal && (
-        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Create New Simulation</h3>
-              <button className="modal-close" onClick={() => setShowCreateModal(false)}>×</button>
-            </div>
-            <form onSubmit={handleCreateSimulation} className="modal-form">
-              <div className="form-group">
-                <label>Simulation Name</label>
-                <input
-                  type="text"
-                  value={newSimulation.name}
-                  onChange={(e) => setNewSimulation({ ...newSimulation, name: e.target.value })}
-                  required
-                  placeholder="e.g., Airfoil AoA 10deg"
-                />
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Project</label>
-                  <select
-                    value={newSimulation.projectId}
-                    onChange={(e) => setNewSimulation({ ...newSimulation, projectId: e.target.value, meshId: '' })}
-                    required
-                  >
-                    <option value="">Select project...</option>
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Mesh</label>
-                  <select
-                    value={newSimulation.meshId}
-                    onChange={(e) => setNewSimulation({ ...newSimulation, meshId: e.target.value })}
-                    required
-                    disabled={!newSimulation.projectId}
-                  >
-                    <option value="">Select mesh...</option>
-                    {meshes.filter(m => m.projectId === newSimulation.projectId).map((m) => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Solver</label>
-                  <select
-                    value={newSimulation.solverType}
-                    onChange={(e) => setNewSimulation({ ...newSimulation, solverType: e.target.value })}
-                  >
-                    <option value="openfoam">OpenFOAM</option>
-                    <option value="su2">SU2</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Turbulence Model</label>
-                  <select
-                    value={newSimulation.turbulenceModel}
-                    onChange={(e) => setNewSimulation({ ...newSimulation, turbulenceModel: e.target.value })}
-                  >
-                    <option value="kOmegaSST">k-ω SST</option>
-                    <option value="kEpsilon">k-ε</option>
-                    <option value="spalartAllmaras">Spalart-Allmaras</option>
-                  </select>
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Time Step</label>
-                  <input
-                    type="number"
-                    step="0.0001"
-                    min="0.00001"
-                    max="1"
-                    value={newSimulation.timeStep}
-                    onChange={(e) => setNewSimulation({ ...newSimulation, timeStep: parseFloat(e.target.value) })}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>End Time</label>
-                  <input
-                    type="number"
-                    step="1"
-                    min="1"
-                    max="100000"
-                    value={newSimulation.endTime}
-                    onChange={(e) => setNewSimulation({ ...newSimulation, endTime: parseFloat(e.target.value) })}
-                  />
-                </div>
-              </div>
-              <div className="form-group">
-                <label>Max Iterations</label>
-                <input
-                  type="number"
-                  min="100"
-                  max="100000"
-                  value={newSimulation.maxIterations}
-                  onChange={(e) => setNewSimulation({ ...newSimulation, maxIterations: parseInt(e.target.value) })}
-                />
-              </div>
-              <div className="form-actions">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowCreateModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Create Simulation</button>
-              </div>
-            </form>
+      {/* ─── Create Simulation Modal ─────────────────────────────────── */}
+      <Modal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="Create New Simulation"
+        size="lg"
+      >
+        <form onSubmit={handleCreateSimulation} className="space-y-5">
+          <Input
+            label="Simulation Name"
+            value={newSimulation.name}
+            onChange={(e) => setNewSimulation({ ...newSimulation, name: e.target.value })}
+            placeholder="e.g., Airfoil AoA 10deg"
+            required
+          />
+          <div className="grid grid-cols-2 gap-4">
+            <Select
+              label="Project"
+              value={newSimulation.projectId}
+              onChange={(e) => setNewSimulation({ ...newSimulation, projectId: e.target.value, meshId: '' })}
+              options={[
+                { value: '', label: 'Select project...' },
+                ...projects.map((p) => ({ value: p.id, label: p.name }))
+              ]}
+              required
+            />
+            <Select
+              label="Mesh"
+              value={newSimulation.meshId}
+              onChange={(e) => setNewSimulation({ ...newSimulation, meshId: e.target.value })}
+              options={[
+                { value: '', label: 'Select mesh...' },
+                ...meshes.filter(m => m.projectId === newSimulation.projectId).map((m) => ({ value: m.id, label: m.name }))
+              ]}
+              required
+              disabled={!newSimulation.projectId}
+            />
           </div>
-        </div>
-      )}
+          <div className="grid grid-cols-2 gap-4">
+            <Select
+              label="Solver"
+              value={newSimulation.solverType}
+              onChange={(e) => setNewSimulation({ ...newSimulation, solverType: e.target.value })}
+              options={[
+                { value: 'openfoam', label: 'OpenFOAM' },
+                { value: 'su2', label: 'SU2' },
+              ]}
+            />
+            <Select
+              label="Turbulence Model"
+              value={newSimulation.turbulenceModel}
+              onChange={(e) => setNewSimulation({ ...newSimulation, turbulenceModel: e.target.value })}
+              options={[
+                { value: 'kOmegaSST', label: 'k-ω SST' },
+                { value: 'kEpsilon', label: 'k-ε' },
+                { value: 'spalartAllmaras', label: 'Spalart-Allmaras' },
+              ]}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Time Step"
+              type="number"
+              step="0.0001"
+              min="0.00001"
+              max="1"
+              value={newSimulation.timeStep}
+              onChange={(e) => setNewSimulation({ ...newSimulation, timeStep: parseFloat(e.target.value) })}
+            />
+            <Input
+              label="End Time"
+              type="number"
+              step="1"
+              min="1"
+              max="100000"
+              value={newSimulation.endTime}
+              onChange={(e) => setNewSimulation({ ...newSimulation, endTime: parseFloat(e.target.value) })}
+            />
+          </div>
+          <Input
+            label="Max Iterations"
+            type="number"
+            min="100"
+            max="100000"
+            value={newSimulation.maxIterations}
+            onChange={(e) => setNewSimulation({ ...newSimulation, maxIterations: parseInt(e.target.value) })}
+          />
+          <div className="flex justify-end gap-3 pt-4 border-t border-border-subtle">
+            <Button variant="secondary" onClick={() => setShowCreateModal(false)}>Cancel</Button>
+            <Button variant="primary" type="submit">Create Simulation</Button>
+          </div>
+        </form>
+      </Modal>
 
-      {showDetailModal && selectedSimulation && (
-        <div className="modal-overlay" onClick={() => setShowDetailModal(false)}>
-          <div className="modal modal-large" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>{selectedSimulation.name}</h3>
-              <button className="modal-close" onClick={() => setShowDetailModal(false)}>×</button>
-            </div>
-            <div className="modal-content">
-              <div className="detail-tabs">
-                <button className={`tab-btn ${detailTab === 'overview' ? 'active' : ''}`} onClick={() => setDetailTab('overview')}>Overview</button>
-                <button className={`tab-btn ${detailTab === 'residuals' ? 'active' : ''}`} onClick={() => setDetailTab('residuals')}>Residuals</button>
-                <button className={`tab-btn ${detailTab === 'settings' ? 'active' : ''}`} onClick={() => setDetailTab('settings')}>Settings</button>
+      {/* ─── Detail Modal ────────────────────────────────────────────── */}
+      <Modal
+        isOpen={showDetailModal && !!selectedSimulation}
+        onClose={() => { setShowDetailModal(false); setSelectedSimulation(null); }}
+        title={selectedSimulation?.name}
+        size="xl"
+      >
+        {!selectedSimulation ? null : (
+          <>
+            <div className="space-y-6">
+              {/* ─── Tabs ─────────────────────────────────────────────── */}
+              <div className="flex border-b border-border-subtle" role="tablist">
+                {[
+                  { key: 'overview', label: 'Overview' },
+                  { key: 'residuals', label: 'Residuals' },
+                  { key: 'settings', label: 'Settings' },
+                  { key: 'post', label: 'Post-Processing' },
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    role="tab"
+                    aria-selected={detailTab === tab.key}
+                    aria-controls={`panel-${tab.key}`}
+                    id={`tab-${tab.key}`}
+                    onClick={() => setDetailTab(tab.key)}
+                    className={twMerge(
+                      'px-4 py-3 text-caption font-medium rounded-t-lg border-b-2 transition-colors',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-blue/50',
+                      detailTab === tab.key
+                        ? 'text-accent-blue border-accent-blue bg-bg-tertiary'
+                        : 'text-text-muted hover:text-text-primary hover:bg-bg-tertiary'
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
               </div>
 
+              {/* ─── Overview Tab ─────────────────────────────────────── */}
               {detailTab === 'overview' && (
-                <div className="detail-grid">
-                  <div className="detail-section">
-                    <h4>Basic Information</h4>
-                    <div className="detail-grid-inner">
-                      <div className="detail-item"><label>Project</label><span>{selectedSimulation.projectName}</span></div>
-                      <div className="detail-item"><label>Mesh</label><span>{selectedSimulation.meshName}</span></div>
-                      <div className="detail-item"><label>Solver</label><span className="solver-badge">{selectedSimulation.solverType}</span></div>
-                      <div className="detail-item"><label>Turbulence Model</label><span>{selectedSimulation.turbulenceModel}</span></div>
-                      <div className="detail-item"><label>Status</label><span className={`status-badge ${getStatusColor(selectedSimulation.status)}`}>{getStatusLabel(selectedSimulation.status)}</span></div>
-                      <div className="detail-item"><label>Created</label><span>{selectedSimulation.createdAt}</span></div>
-                      <div className="detail-item"><label>Started</label><span>{selectedSimulation.startedAt || 'Not started'}</span></div>
-                      <div className="detail-item"><label>Completed</label><span>{selectedSimulation.completedAt || 'Not completed'}</span></div>
+                <div className="space-y-6 pt-4">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <h4 className="text-heading-sm text-text-primary border-b border-border-subtle pb-2">Simulation Info</h4>
+                      <div className="space-y-3">
+                        <DetailItem label="Project" value={selectedSimulation.projectName} />
+                        <DetailItem label="Mesh" value={selectedSimulation.meshName} />
+                        <DetailItem label="Solver" value={<Badge variant="info" size="sm">{selectedSimulation.solverType}</Badge>} />
+                        <DetailItem label="Turbulence Model" value={selectedSimulation.turbulenceModel} />
+                        <DetailItem label="Status" value={<Badge variant={getStatusVariant(selectedSimulation.status)}>{getStatusLabel(selectedSimulation.status)}</Badge>} />
+                        <DetailItem label="Created" value={selectedSimulation.createdAt} />
+                        <DetailItem label="Started" value={selectedSimulation.startedAt || '—'} />
+                        <DetailItem label="Completed" value={selectedSimulation.completedAt || '—'} />
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <h4 className="text-heading-sm text-text-primary border-b border-border-subtle pb-2">Configuration</h4>
+                      <div className="space-y-3">
+                        <DetailItem label="Time Step" value={selectedSimulation.timeStep} />
+                        <DetailItem label="End Time" value={selectedSimulation.endTime} />
+                        <DetailItem label="Max Iterations" value={selectedSimulation.maxIterations} />
+                        <DetailItem label="Turbulence Model" value={selectedSimulation.turbulenceModel} />
+                        <DetailItem label="CPU Hours" value={selectedSimulation.cpuHours.toFixed(1)} />
+                      </div>
                     </div>
                   </div>
-                  <div className="detail-section">
-                    <h4>Solver Settings</h4>
-                    <div className="detail-grid-inner">
-                      <div className="detail-item"><label>Time Step</label><span>{selectedSimulation.timeStep}</span></div>
-                      <div className="detail-item"><label>End Time</label><span>{selectedSimulation.endTime}</span></div>
-                      <div className="detail-item"><label>Max Iterations</label><span>{selectedSimulation.maxIterations}</span></div>
-                      <div className="detail-item"><label>Current Iteration</label><span>{selectedSimulation.currentIteration}</span></div>
-                      <div className="detail-item"><label>Progress</label><span>{selectedSimulation.progress.toFixed(1)}%</span></div>
-                      <div className="detail-item"><label>CPU Hours</label><span>{selectedSimulation.cpuHours.toFixed(1)}</span></div>
+
+                  {selectedSimulation.residuals && (
+                    <div className="border-t border-border-subtle pt-6">
+                      <h4 className="text-heading-sm text-text-primary mb-4">Current Residuals</h4>
+                      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                        {Object.entries(selectedSimulation.residuals).map(([key, value]) => (
+                          <div key={key} className="bg-bg-tertiary rounded-lg p-3 flex items-center justify-between">
+                            <span className="font-mono text-caption text-text-muted">{key}</span>
+                            <span className="font-mono text-body-sm text-text-primary">{typeof value === 'number' ? value.toExponential(2) : value}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                  <div className="detail-section">
-                    <h4>Current Residuals</h4>
-                    <div className="detail-grid-inner">
-                      {selectedSimulation.residuals && (
-                        <>
-                          <div className="detail-item"><label>Ux</label><span>{selectedSimulation.residuals.Ux.toExponential(2)}</span></div>
-                          <div className="detail-item"><label>Uy</label><span>{selectedSimulation.residuals.Uy.toExponential(2)}</span></div>
-                          <div className="detail-item"><label>Uz</label><span>{selectedSimulation.residuals.Uz.toExponential(2)}</span></div>
-                          <div className="detail-item"><label>p</label><span>{selectedSimulation.residuals.p.toExponential(2)}</span></div>
-                          <div className="detail-item"><label>k</label><span>{selectedSimulation.residuals.k.toExponential(2)}</span></div>
-                          <div className="detail-item"><label>ε</label><span>{selectedSimulation.residuals.epsilon.toExponential(2)}</span></div>
-                        </>
-                      )}
+                  )}
+                  {selectedSimulation.progress > 0 && (
+                    <div className="border-t border-border-subtle pt-6">
+                      <h4 className="text-heading-sm text-text-primary mb-4">Progress</h4>
+                      <ProgressBar value={selectedSimulation.progress} size="lg" showLabel />
+                      <div className="flex justify-between text-caption-sm text-text-muted mt-2">
+                        <span>Iteration: {selectedSimulation.currentIteration} / {selectedSimulation.maxIterations}</span>
+                        <span>{selectedSimulation.progress.toFixed(1)}%</span>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
 
+              {/* ─── Residuals Tab ────────────────────────────────────── */}
               {detailTab === 'residuals' && (
-                <div className="residuals-chart">
-                  <h4>Residual History</h4>
-                  <div className="chart-placeholder">
-                    <p>Residual convergence plot would be displayed here</p>
-                    <p className="chart-note">(Real-time updates during simulation)</p>
+                <div className="space-y-6 pt-4">
+                  <h4 className="text-heading-sm text-text-primary mb-4">Residual History</h4>
+                  <div className="bg-bg-tertiary rounded-xl p-6 min-h-[300px] flex items-center justify-center">
+                    <EmptyState
+                      icon={<ChartIcon />}
+                      title="Residual Plot"
+                      description="Real-time residual history chart would be displayed here when connected to the solver."
+                    />
                   </div>
                 </div>
               )}
 
+              {/* ─── Settings Tab ─────────────────────────────────────── */}
               {detailTab === 'settings' && (
-                <div className="detail-section">
-                  <h4>Solver Configuration</h4>
-                  <pre className="config-preview">{
-`/* OpenFOAM controlDict */
-application     simpleFoam;
-startFrom       startTime;
-startTime       0;
-stopAt          endTime;
-endTime         ${selectedSimulation.endTime};
-deltaT          ${selectedSimulation.timeStep};
-writeControl    timeStep;
-writeInterval   100;
-purgeWrite      0;
-writeFormat     ascii;
-writePrecision  6;
-writeCompression off;
-timeFormat      general;
-timePrecision   6;
-runTimeModifiable true;
-
-/* fvSchemes */
-ddtSchemes
-{
-    default         steadyState;
-}
-
-gradSchemes
-{
-    default         Gauss linear;
-    grad(p)         Gauss linear;
-    grad(U)         Gauss linear;
-}
-
-divSchemes
-{
-    default         none;
-    div(phi,U)      Gauss upwind;
-    div(phi,k)      Gauss upwind;
-    div(phi,epsilon) Gauss upwind;
-    div((nuEff*dev2(T(grad(U))))) Gauss linear;
-}
-
-laplacianSchemes
-{
-    default         Gauss linear corrected;
-}
-
-interpolationSchemes
-{
-    default         linear;
-}
-
-snGradSchemes
-{
-    default         corrected;
-}
-
-/* fvSolution */
-solvers
-{
-    p
-    {
-        solver          GAMG;
-        tolerance       1e-06;
-        relTol          0.1;
-        smoother        GaussSeidel;
-    }
-    U
-    {
-        solver          smoothSolver;
-        smoother        GaussSeidel;
-        tolerance       1e-06;
-        relTol          0.1;
-    }
-    k
-    {
-        solver          smoothSolver;
-        smoother        GaussSeidel;
-        tolerance       1e-06;
-        relTol          0.1;
-    }
-    epsilon
-    {
-        solver          smoothSolver;
-        smoother        GaussSeidel;
-        tolerance       1e-06;
-        relTol          0.1;
-    }
-}
-
-SIMPLE
-{
-    nNonOrthogonalCorrectors 1;
-    consistent      yes;
-    pRefCell        0;
-    pRefValue       0;
-}
-
-relaxationFactors
-{
-    equations
-    {
-        U               0.7;
-        k               0.7;
-        epsilon         0.7;
-    }
-    fields
-    {
-        p               0.3;
-    }
-}`
-                  }</pre>
+                <div className="space-y-6 pt-4 max-w-2xl">
+                  <h4 className="text-heading-sm text-text-primary mb-4">Simulation Settings</h4>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <Input
+                        label="Time Step"
+                        type="number"
+                        step="0.0001"
+                        min="0.00001"
+                        max="1"
+                        value={selectedSimulation.timeStep}
+                        onChange={(e) => setSelectedSimulation({ ...selectedSimulation!, timeStep: parseFloat(e.target.value) })}
+                      />
+                      <Input
+                        label="End Time"
+                        type="number"
+                        step="1"
+                        min="1"
+                        max="100000"
+                        value={selectedSimulation.endTime}
+                        onChange={(e) => setSelectedSimulation({ ...selectedSimulation!, endTime: parseFloat(e.target.value) })}
+                      />
+                    </div>
+                    <Input
+                      label="Max Iterations"
+                      type="number"
+                      min="100"
+                      max="100000"
+                      value={selectedSimulation.maxIterations}
+                      onChange={(e) => setSelectedSimulation({ ...selectedSimulation!, maxIterations: parseInt(e.target.value) })}
+                    />
+                    <Select
+                      label="Turbulence Model"
+                      value={selectedSimulation.turbulenceModel}
+                      onChange={(e) => setSelectedSimulation({ ...selectedSimulation!, turbulenceModel: e.target.value })}
+                      options={[
+                        { value: 'kOmegaSST', label: 'k-ω SST' },
+                        { value: 'kEpsilon', label: 'k-ε' },
+                        { value: 'spalartAllmaras', label: 'Spalart-Allmaras' },
+                      ]}
+                    />
+                  </div>
                 </div>
               )}
 
-              <div className="modal-actions">
-                {selectedSimulation.status === 'pending' && (
-                  <button className="btn btn-primary" onClick={() => { handleStartSimulation(selectedSimulation.id); setShowDetailModal(false); }}>
-                    ▶️ Start Simulation
-                  </button>
-                )}
-                {selectedSimulation.status === 'running' && (
-                  <button className="btn btn-warning" onClick={() => { handleStopSimulation(selectedSimulation.id); setShowDetailModal(false); }}>
-                    ⏸️ Stop Simulation
-                  </button>
-                )}
-                {selectedSimulation.status === 'completed' && (
-                  <button className="btn btn-primary" onClick={() => { setDetailTab('post'); setShowDetailModal(false); }}>
-                    📈 Post-Processing
-                  </button>
-                )}
-                {selectedSimulation.status === 'failed' && (
-                  <button className="btn btn-primary" onClick={() => { handleStartSimulation(selectedSimulation.id); setShowDetailModal(false); }}>
-                    🔄 Restart
-                  </button>
-                )}
-              </div>
+              {/* ─── Post-Processing Tab ──────────────────────────────── */}
+              {detailTab === 'post' && (
+                <div className="space-y-6 pt-4">
+                  <h4 className="text-heading-sm text-text-primary mb-4">Post-Processing</h4>
+                  <div className="bg-bg-tertiary rounded-xl p-6 min-h-[300px] flex items-center justify-center">
+                    <EmptyState
+                      icon={<ChartIcon />}
+                      title="Post-Processing Tools"
+                      description="Create contours, streamlines, vectors, iso-surfaces, and more from the simulation results."
+                    />
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        </div>
-      )}
+
+            <div className="flex justify-end gap-3 pt-6 border-t border-border-subtle">
+              {selectedSimulation?.status === 'running' && (
+                <Button variant="secondary" icon={<PauseIcon />} iconPosition="left" onClick={() => handleStopSimulation(selectedSimulation.id)}>
+                  Stop
+                </Button>
+              )}
+              {selectedSimulation?.status === 'pending' && (
+                <Button variant="primary" icon={<PlayIcon />} iconPosition="left" onClick={() => handleStartSimulation(selectedSimulation.id)}>
+                  Start
+                </Button>
+              )}
+              {selectedSimulation?.status === 'completed' && (
+                <Button variant="primary" icon={<ChartIcon />} iconPosition="left">
+                  View Results
+                </Button>
+              )}
+              {selectedSimulation?.status === 'failed' && (
+                <Button variant="primary" icon={<RefreshIcon />} iconPosition="left" onClick={() => handleStartSimulation(selectedSimulation.id)}>
+                  Restart
+                </Button>
     </div>
+  )
+}
+
+// ─── Helper Components ────────────────────────────────────────────────
+
+function DetailItem({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between py-2 border-b border-border-subtle/50">
+      <span className="text-caption-sm text-text-muted">{label}</span>
+      <span className="text-body-sm text-text-primary text-right max-w-[60%] truncate">{value}</span>
+    </div>
+  )
+}
+
+function getStatusVariant(status: string): 'default' | 'success' | 'warning' | 'error' | 'info' {
+  switch (status) {
+    case 'running':
+    case 'completed':
+      return 'success'
+    case 'pending':
+      return 'warning'
+    case 'failed':
+      return 'error'
+    default:
+      return 'default'
+  }
+}
+
+function getStatusLabel(status: string) {
+  return status.charAt(0).toUpperCase() + status.slice(1)
+}
+
+// Icons
+function PlusIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  )
+}
+
+function PlayIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 5h5v5H5zM14 14h5v5h-5zM7.5 10v2a2 2 0 0 0 2 2H14" />
+      <path d="m12 17 2 2 2-2" />
+    </svg>
+  )
+}
+
+function PauseIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="6" y="4" width="4" height="16" rx="1" />
+      <rect x="14" y="4" width="4" height="16" rx="1" />
+    </svg>
+  )
+}
+
+function RefreshIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M23 4v6h-6" />
+      <path d="M1 20v-6h6" />
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+    </svg>
+  )
+}
+
+function ChartIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 3v18h18" />
+      <path d="m19 9-5 5-4-4-3 3" />
+    </svg>
+  )
+}
+
+function TrashIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
   )
 }
